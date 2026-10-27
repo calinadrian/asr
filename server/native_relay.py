@@ -152,6 +152,7 @@ class Relay:
                     raise ProtocolError('A new session has received nothing')
                 # Never hold the relay lock while taking the lobby's: the lobby ends sessions under its own.
                 player = self.lobby.connect(Session(self))
+                player.resumable = True
                 session = player.wire
                 session.player = player
                 with self.lock:

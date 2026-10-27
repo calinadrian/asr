@@ -2,7 +2,7 @@ import io
 import struct
 import unittest
 
-from native_lobby import Lobby, Reader, blob, number, string
+from native_lobby import NOTICE_JOIN, NOTICE_NAME, NOTICE_TEXT, Lobby, Reader, blob, number, string
 from native_websocket import MAX_MESSAGE, ProtocolError, WebSocket
 
 
@@ -54,6 +54,7 @@ class LobbyTests(unittest.TestCase):
 
     def test_native_list_has_real_room_metadata_and_capacity(self):
         host, code = self.room()
+        host.resumable = True  # the update notice is covered separately
         self.lobby.handle(host, b'\x02')
         reader = Reader(host.wire.messages[-1])
         self.assertEqual((reader.byte(), reader.integer()), (20, 1))
@@ -67,6 +68,30 @@ class LobbyTests(unittest.TestCase):
         self.assertEqual(reader.string(), '')
         self.assertEqual(reader.byte(), 4)
         reader.finish()
+
+    def test_games_without_play_asr_see_the_update_notice_first(self):
+        host, code = self.room()
+        player = self.player()
+        self.lobby.handle(player, b'\x02')
+        reader = Reader(player.wire.messages[-1])
+        self.assertEqual((reader.byte(), reader.integer()), (20, 2))
+        self.assertEqual([reader.string() for _ in range(4)], ['UPDATE', NOTICE_NAME, NOTICE_TEXT, 'ASR'])
+        self.assertEqual(reader.byte(), 1)
+        self.assertEqual(reader.string(), 'elwynn')
+        self.assertEqual(reader.take(3), b'\x00\x00\x01')
+        self.assertEqual((reader.string(), reader.blob(), reader.string()), ('', b'\x01', ''))
+        self.assertEqual(reader.string(), code)
+        reader.take(len(player.wire.messages[-1]) - reader.offset - 2)
+        self.assertEqual(reader.take(2), b'\x04\x04')
+        reader.finish()
+        self.lobby.handle(player, b'\x05' + string('update') + string(''))
+        self.assertIsNone(player.room)
+        self.assertEqual(player.wire.messages[-1], b'\x17' + string(NOTICE_JOIN))
+        player.resumable = True
+        self.lobby.handle(player, b'\x02')
+        self.assertEqual(Reader(player.wire.messages[-1]).take(5), b'\x14' + number(1))
+        self.lobby.handle(player, b'\x05' + string('UPDATE') + string(''))
+        self.assertEqual(player.wire.messages[-1], b'\x17' + string('no lobby with that code'))
 
     def test_private_and_password_rooms(self):
         host, code = self.room('secret', private=True)

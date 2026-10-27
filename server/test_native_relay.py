@@ -81,7 +81,7 @@ class RelayTests(unittest.TestCase):
 
     def test_resume_does_not_repeat_acknowledged_messages(self):
         link, token = self.start(d(b'\x02'))
-        self.assertEqual(len(link.lobby()), 1)
+        self.assertEqual(link.lobby(), [b'\x14' + number(0)])  # no update notice through Play ASR
         back = Link(hello(token, 1))
         self.relay.run(back)
         self.assertEqual(back.lobby(), [])

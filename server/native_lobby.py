@@ -14,6 +14,14 @@ from native_websocket import ProtocolError, WebSocket
 # Each verified with two real engines; rooms only list and admit their own version.
 SUPPORTED_VERSIONS = ('0.120.1', '0.120.4', '0.120.5', '0.120.6', '0.120.7', '0.120.8')
 
+# Games connected without Play ASR see this first in the public list. The game's updater can't install
+# Play ASR, so players who installed before it existed only get reconnects by running ASR-Setup again.
+# Its code is longer than real codes (five characters), so it never matches a room.
+NOTICE_CODE = 'UPDATE'
+NOTICE_NAME = 'Update ASR for co-op reconnects'
+NOTICE_TEXT = 'Run ASR-Setup again: github.com/calinadrian/asr'
+NOTICE_JOIN = 'run ASR-Setup again (github.com/calinadrian/asr) so a run survives your internet dropping'
+
 
 def number(value):
     return struct.pack('<I', value)
@@ -93,6 +101,7 @@ class Player:
     hero: object = None
     status: bytes = b''
     control_times: list = field(default_factory=list)
+    resumable: bool = False  # connected through Play ASR
 
 
 @dataclass
@@ -152,9 +161,12 @@ class Lobby:
             self.leave(player, 'the host left')
             self.players.discard(player)
 
-    def listing(self, version):
+    def listing(self, version, notice=False):
         rooms = [r for r in self.rooms.values() if not r.private and r.host.version == version]
-        data = bytearray(b'\x14' + number(len(rooms)))
+        data = bytearray(b'\x14' + number(len(rooms) + notice))
+        if notice:
+            data += (string(NOTICE_CODE) + string(NOTICE_NAME) + string(NOTICE_TEXT) + string('ASR') + b'\x01'
+                     + string('elwynn') + bytes([0, 0, 1]) + string('') + blob(b'\x01') + string(''))
         for room in rooms:
             hero = room.host.hero
             data += (string(room.code) + string(room.name) + string(room.description)
@@ -163,7 +175,7 @@ class Lobby:
                      + string(''))  # No third-party IP geolocation service.
             data += blob(hero.classes) + string('')  # Optional host title follows the class list.
         # Newer clients append one capacity byte per record after the older list.
-        data += bytes(room.host.hero.maximum for room in rooms)
+        data += bytes([4] * notice) + bytes(room.host.hero.maximum for room in rooms)
         return bytes(data)
 
     def handle(self, player, message):
@@ -191,7 +203,7 @@ class Lobby:
                 raise ProtocolError('Handshake is required')
             if tag == 2:
                 reader.finish()
-                self.send(player, self.listing(player.version))
+                self.send(player, self.listing(player.version, notice=not player.resumable))
             elif tag == 3:
                 name, public = reader.string(128), reader.byte()
                 description, password = reader.string(512), reader.string(128)
@@ -223,6 +235,8 @@ class Lobby:
                 if player.room:
                     return self.deny(player, 'already in a lobby')
                 room = self.rooms.get(code)
+                if code == NOTICE_CODE and not player.resumable:
+                    return self.deny(player, NOTICE_JOIN)
                 if room is None:
                     return self.deny(player, 'no lobby with that code')
                 if room.host.version != player.version:
