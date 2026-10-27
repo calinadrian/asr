@@ -7,9 +7,15 @@ Players download `ASR-Setup.exe` from the `game` release (built with `.\asr setu
 1. **Install to:** `%LOCALAPPDATA%\Programs\ASR` by default, or any folder the player picks (an `ASR` folder is created inside it). It refuses folders it can't write to, which the game needs for its own updates, and folders with other files in them. Running it again finds the existing installation and only downloads what changed.
 2. It downloads `base.json`, `patches.json` and `latest.json` from the `game` release and the gzip parts they list, checks each file's SHA-256, and writes the game as `ASR.exe` last, so its presence means the installation is complete.
 3. It saves four user environment variables the game reads: `WOW_ROGUE_UPDATE_URL` and `WOW_ROGUE_DATA_URL` (our `game` release), `WOW_ROGUE_COOP_URL` (`wss://game.hassian.duckdns.org:47770/coop/lobby/`) and `WOW_ROGUE_PRESENCE=0` (otherwise the game browses its author's lobby).
-4. It adds an **ASR** Start menu shortcut (and a desktop one if chosen), an **ASR** entry in Settings > Apps, `Uninstall ASR.exe` and `asr-install.json` in the folder.
+4. It adds an **ASR** Start menu shortcut (and a desktop one if chosen), an **ASR** entry in Settings > Apps, `Play ASR.exe`, `Uninstall ASR.exe` and `asr-install.json` in the folder.
 
-Uninstalling removes the folder, the shortcuts, the entry and those four variables; characters live in the player's AppData and are kept. Nothing of ours runs after installation.
+Uninstalling removes the folder, the shortcuts, the entry and those four variables; characters live in the player's AppData and are kept.
+
+## Play ASR.exe
+
+The shortcuts start `Play ASR.exe --play`, a copy of ASR-Setup (`launcher/Relay.cs`). It starts the game with `WOW_ROGUE_COOP_URL` pointing at itself on loopback, a connection that never breaks, and carries the lobby traffic to the server's `/coop/relay/`. When the player's internet drops it reconnects every second and resumes the same lobby session; the server keeps the player's place for two minutes and both sides resend what the other missed. The game itself never reconnects to a party or run, so without this a dropped guest leaves the run and a dropped host's party ends. It stays running until the game exits (including the game's restart after an update) and writes `coop-relay.log` next to itself.
+
+What it does not cover: the host's game crashing or quitting still ends the party, and while a link is down the other players' copies of the run stand still. Starting `ASR.exe` directly connects to `/coop/lobby/` without resume. Players who installed before Play ASR existed get it by running ASR-Setup again.
 
 ## Game updates
 

@@ -6,7 +6,7 @@ This repository holds what runs around the game: its installer, the co-op lobby 
 
 ## For players
 
-Download and run **[ASR-Setup.exe](https://github.com/calinadrian/asr/releases/download/game/ASR-Setup.exe)**. Choose where to install (no administrator rights needed); it downloads the game (about 1.4 GB), adds **ASR** to your Start menu and, if you like, your desktop. From then on, open ASR from the shortcut. Uninstall it in Settings > Apps. When a new version is out, the game tells you and updates itself. Co-op rooms are on our server. Your characters, settings and saves are never touched by updates.
+Download and run **[ASR-Setup.exe](https://github.com/calinadrian/asr/releases/download/game/ASR-Setup.exe)**. Choose where to install (no administrator rights needed); it downloads the game (about 1.4 GB), adds **ASR** to your Start menu and, if you like, your desktop. From then on, open ASR from the shortcut. Uninstall it in Settings > Apps. When a new version is out, the game tells you and updates itself. Co-op rooms are on our server; if your internet drops during a run, you have two minutes to come back and carry on in the same party. Your characters, settings and saves are never touched by updates.
 
 ## How updates reach players
 

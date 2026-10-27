@@ -68,7 +68,7 @@ class Server(ThreadingHTTPServer):
         super().server_bind()
 
 
-def handler(native):
+def handler(native, relay):
     from native_websocket import ProtocolError
 
     class Handler(BaseHTTPRequestHandler):
@@ -94,6 +94,12 @@ def handler(native):
                     native.serve(self)
                 except ProtocolError:
                     self.reply(400, dict(error='Invalid desktop lobby connection'))
+                return
+            if self.path == '/coop/relay/':
+                try:
+                    relay.serve(self)
+                except ProtocolError:
+                    self.reply(400, dict(error='Invalid relay connection'))
                 return
             relative = self.path.removeprefix('/launcher/') if self.path.startswith('/launcher/') else None
             # Launchers up to 0.1.4 still update from here; newer ones use GitHub Releases.
@@ -138,6 +144,7 @@ def renew_game_certificate(holder):
 
 def serve():
     from native_lobby import Lobby, SUPPORTED_VERSIONS
+    from native_relay import GRACE, Relay
     import acme
     import mirror
     config = json.loads(CONFIG.read_text())
@@ -151,13 +158,15 @@ def serve():
             connection.context = holder['game']
     context.sni_callback = choose
     threading.Thread(target=renew_game_certificate, args=(holder,), daemon=True).start()
-    public = Server(('0.0.0.0', config['directory_port']), handler(Lobby()))
+    lobby = Lobby()
+    public = Server(('0.0.0.0', config['directory_port']), handler(lobby, Relay(lobby)))
     # Handshakes run in each connection's thread, so a slow client cannot stall new connections.
     public.socket = context.wrap_socket(public.socket, server_side=True, do_handshake_on_connect=False)
     threading.Thread(target=mirror.run, args=(STATE,), daemon=True).start()
     print(f"ASR server: https://{config['host']}:{config['directory_port']}", flush=True)
     print(f"In-game co-op lobby: /coop/lobby/ (games {', '.join(SUPPORTED_VERSIONS)}; four players); "
           f"games connect to wss://{acme.GAME_HOST}:{config['directory_port']}/coop/lobby/", flush=True)
+    print(f'Play ASR connects through /coop/relay/; a dropped player keeps their place for {GRACE} seconds.', flush=True)
     print('Launcher updates: mirrored from GitHub Releases every 10 minutes. Ctrl+C stops the server.', flush=True)
     try:
         public.serve_forever()

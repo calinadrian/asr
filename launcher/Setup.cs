@@ -1,6 +1,7 @@
 // ASR-Setup.exe: installs the game from our GitHub into a folder the player chooses, tells it where to
-// update from and where to play co-op, adds shortcuts and a Settings > Apps entry with an uninstaller. Nothing of ours keeps running afterwards: the game itself
-// prompts when the game release on GitHub has a newer version.
+// update from and where to play co-op, adds shortcuts and a Settings > Apps entry with an uninstaller. The shortcuts start
+// Play ASR.exe (this program again, with --play), which starts the game and keeps its co-op connection alive across internet
+// drops (Relay.cs) until the game exits. The game itself prompts when the game release on GitHub has a newer version.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -28,6 +29,7 @@ namespace ASR.Setup {
         public const string ExeName = "ASR.exe";
         // Installed by the first ASR-Setup, and kept by players who update in-game; replaced on reinstall.
         public const string LegacyExe = "AzerothSurvivors.exe";
+        public const string PlayName = "Play ASR.exe";
         // Read by the game at start; each is a setting the game already supports.
         public static readonly Dictionary<string, string> Settings = new Dictionary<string, string> {
             { "WOW_ROGUE_UPDATE_URL", Release + "latest.json" },
@@ -110,7 +112,8 @@ namespace ASR.Setup {
                 string path = Path.Combine(folder, "ASR.lnk");
                 object link = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { path });
                 Type linkType = link.GetType();
-                linkType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, link, new object[] { exe });
+                linkType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, link, new object[] { Path.Combine(Path.GetDirectoryName(exe), PlayName) });
+                linkType.InvokeMember("Arguments", BindingFlags.SetProperty, null, link, new object[] { "--play" });
                 linkType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, link, new object[] { Path.GetDirectoryName(exe) });
                 linkType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, link, new object[] { exe + ",0" });
                 linkType.InvokeMember("Description", BindingFlags.SetProperty, null, link, new object[] { "ASR" });
@@ -121,9 +124,46 @@ namespace ASR.Setup {
         }
 
         public static void Start(string exe) {
+            Process.Start(new ProcessStartInfo(Path.Combine(Path.GetDirectoryName(exe), PlayName), "--play") { WorkingDirectory = Path.GetDirectoryName(exe), UseShellExecute = false });
+        }
+
+        // Play ASR.exe: runs the game with its co-op connection through the relay, and stays until the game is gone.
+        public static int Play(string exe) {
+            string logPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "coop-relay.log");
+            object logLock = new object();
+            Action<string> log = message => {
+                lock (logLock) try {
+                    if (File.Exists(logPath) && new FileInfo(logPath).Length > 1 << 20) File.Delete(logPath);
+                    File.AppendAllText(logPath, DateTime.UtcNow.ToString("o") + " " + message + Environment.NewLine);
+                } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            };
+            var relay = new Relay(new Uri(Environment.GetEnvironmentVariable("ASR_RELAY_URL") ?? Relay.ServerUrl), log);
             var start = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe), UseShellExecute = false };
-            foreach (var setting in Settings) start.EnvironmentVariables[setting.Key] = setting.Value;
-            Process.Start(start);
+            // Started right after installing, before Windows hands the new user settings to programs.
+            foreach (var setting in Settings)
+                if (Environment.GetEnvironmentVariable(setting.Key) == null) start.EnvironmentVariables[setting.Key] = setting.Value;
+            start.EnvironmentVariables["WOW_ROGUE_COOP_URL"] = relay.GameUrl;
+            Process game = Process.Start(start);
+            while (game != null) {
+                game.WaitForExit(); game.Dispose();
+                game = Restarted(exe);
+            }
+            return 0;
+        }
+
+        // After installing an update the game restarts itself, with this same environment and so the same relay.
+        static Process Restarted(string exe) {
+            DateTime deadline = DateTime.UtcNow.AddSeconds(20);
+            while (DateTime.UtcNow < deadline) {
+                foreach (Process candidate in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exe))) {
+                    try { if (String.Equals(candidate.MainModule.FileName, exe, StringComparison.OrdinalIgnoreCase)) return candidate; }
+                    catch (System.ComponentModel.Win32Exception) { }
+                    catch (InvalidOperationException) { }
+                    candidate.Dispose();
+                }
+                System.Threading.Thread.Sleep(500);
+            }
+            return null;
         }
     }
 
@@ -147,6 +187,9 @@ namespace ASR.Setup {
         public static void Register(string folder, List<string> shortcuts) {
             string uninstaller = Path.Combine(folder, Uninstaller);
             File.Copy(Assembly.GetExecutingAssembly().Location, uninstaller, true);
+            // Bytes only: File.Copy would carry over the download's "from the internet" mark, and Windows would warn on every start.
+            try { File.WriteAllBytes(Path.Combine(folder, Game.PlayName), File.ReadAllBytes(Assembly.GetExecutingAssembly().Location)); }
+            catch (IOException) { throw new IOException("Close ASR first, then run ASR-Setup again."); }
             File.WriteAllText(Path.Combine(folder, Marker), new JavaScriptSerializer().Serialize(new Dictionary<string, object> { { "shortcuts", shortcuts } }));
             long size = new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
             string version = "";
@@ -323,7 +366,7 @@ namespace ASR.Setup {
                     }
                     if (!args.Contains("--yes") && MessageBox.Show("Remove ASR from this PC?\n\nYour characters are kept.", "Uninstall ASR",
                             MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return 1;
-                    if (Process.GetProcessesByName("ASR").Any(p => { try { return p.MainModule.FileName.StartsWith(folder, StringComparison.OrdinalIgnoreCase); } catch (Exception) { return false; } }) ||
+                    if (Process.GetProcessesByName("ASR").Concat(Process.GetProcessesByName("Play ASR")).Any(p => { try { return p.MainModule.FileName.StartsWith(folder, StringComparison.OrdinalIgnoreCase); } catch (Exception) { return false; } }) ||
                         Process.GetProcessesByName("AzerothSurvivors").Any()) {
                         MessageBox.Show("Close ASR first, then uninstall again.", "Uninstall ASR", MessageBoxButtons.OK, MessageBoxIcon.Warning); return 1;
                     }
@@ -332,6 +375,12 @@ namespace ASR.Setup {
                     // Delete this temporary copy once it has exited.
                     Process.Start(new ProcessStartInfo("cmd.exe", "/c ping -n 3 127.0.0.1 >nul & del \"" + Assembly.GetExecutingAssembly().Location + "\"") { CreateNoWindow = true, UseShellExecute = false });
                     return 0;
+                }
+                if (args.Contains("--play")) {
+                    string here = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                    string game = Option(args, "--game") ?? Path.Combine(here, Game.ExeName);
+                    if (!File.Exists(game) && File.Exists(Path.Combine(here, Game.LegacyExe))) game = Path.Combine(here, Game.LegacyExe);
+                    return Game.Play(game);
                 }
                 if (args.Contains("--test")) {  // install the files only, into --dir, with no window, settings or shortcuts
                     Game.Install(Path.GetFullPath(Option(args, "--dir")), s => { }, (d, t) => { });

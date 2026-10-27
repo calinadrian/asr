@@ -3,6 +3,7 @@
 `asr server` runs everything players connect to, on HTTPS port 47770:
 
 - `/coop/lobby/`: the in-game co-op lobby. It supports games 0.120.1 and 0.120.4 (protocol 3), relays game traffic between the players of each room and allows at most four people per room, host included. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player. Rooms live in memory, so a restart closes them.
+- `/coop/relay/`: the same lobby for games started by `Play ASR.exe` (see [launcher/README.md](../launcher/README.md)), over resumable sessions (`server/native_relay.py`). A player whose link drops keeps their place for two minutes; messages for them wait here (up to 32 MB) and are delivered when they reconnect. After that, or when their game closes the connection, they leave as on `/coop/lobby/`.
 - `/launcher/`: the update channel for launchers up to 0.1.4. Every 10 minutes the server copies the newest signed release from GitHub into `server/state/updates/` (`server/mirror.py`), so those players keep updating. Newer launchers read GitHub directly.
 
 Leave it running; it does not start by itself after a reboot. Launchers keep the game's co-op connection on loopback and forward it to this port with certificate pinning.

@@ -39,7 +39,7 @@ exit /b
 "%PY%" server\public_server.py play
 exit /b
 :setup
-"%CSC%" /nologo /target:winexe /optimize+ /out:downloads\ASR-Setup.exe /win32icon:launcher\asr.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll launcher\Setup.cs || exit /b 1
+"%CSC%" /nologo /target:winexe /optimize+ /out:downloads\ASR-Setup.exe /win32icon:launcher\asr.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll /reference:System.IO.Compression.dll launcher\Setup.cs launcher\Relay.cs || exit /b 1
 echo Built downloads\ASR-Setup.exe
 exit /b
 :publish_game
