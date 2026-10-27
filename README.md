@@ -14,7 +14,7 @@ Download and run **[ASR-Setup.exe](https://github.com/calinadrian/asr/releases/d
 
 **ASR-Setup.exe** is built with `.\asr setup` and lives on the `game` release next to the game files.
 
-**Old launchers:** players who installed with ASR.exe 0.1.8 or earlier keep using it; it still updates from the newest `v*` release (raise [`launcher/version.json`](launcher/version.json) and push to publish one).
+**Old launchers:** players who installed with the ASR.exe launcher (0.1.8 or earlier) keep using it; it starts the game with the same settings, and the game updates itself from the same release.
 
 Details are in [launcher/README.md](launcher/README.md).
 

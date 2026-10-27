@@ -1,5 +1,4 @@
 name: Publish launcher
-# A push that raises launcher/version.json above the latest release builds, signs and publishes the launcher.
 # Old launchers only; run it by hand. The game release is the one players see as Latest.
 on:
   workflow_dispatch:
