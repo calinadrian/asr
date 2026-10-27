@@ -59,13 +59,19 @@ def upload(tag, folder, manifests):
 
 
 def publish(exe, version, notes, tag=GAME_TAG):
+    import stamp_game
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
-        raise ValueError('Use a numeric version such as 0.120.5')
-    if version.encode() not in Path(exe).read_bytes():
-        raise ValueError(f'{exe} does not report version {version}; the game would download it again on every start')
+        raise ValueError('Use a numeric version such as 0.120.6')
+    # The label shows this repository's commit, so it must be one GitHub has.
+    if not subprocess.run(['git', 'branch', '-r', '--contains', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip():
+        raise ValueError('Push your commits first: the game shows the current commit in its version label')
     with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
-        entry = pack(Path(exe), f'game-{version}', folder)
+        # The game reports this exact version, so its updater does not offer the same build again.
+        stamped = folder / 'AzerothSurvivors.exe'
+        stamp_game.stamp(exe, stamped, version)
+        entry = pack(stamped, f'game-{version}', folder)
+        stamped.unlink()
         (folder / 'latest.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
         ensure_release(tag)
         upload(tag, folder, ['latest.json'])

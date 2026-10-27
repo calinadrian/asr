@@ -12,7 +12,7 @@ import time
 from native_websocket import ProtocolError, WebSocket
 
 # Each verified with two real engines; rooms only list and admit their own version.
-SUPPORTED_VERSIONS = ('0.120.1', '0.120.4', '0.120.5')
+SUPPORTED_VERSIONS = ('0.120.1', '0.120.4', '0.120.5', '0.120.6')
 
 
 def number(value):
