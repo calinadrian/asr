@@ -1,8 +1,8 @@
 """GitHub Actions side of publishing: decide from launcher/version.json, then build, sign and release.
 
 decide   sets the step output publish=true when version.json is above the latest release
-publish  writes the signing key and server certificate from secrets, fetches the pinned
-         co-op installer, then runs release.py --stage-only and --promote (which uploads)
+publish  writes the signing key and server certificate from secrets, then runs
+         release.py --stage-only and --promote (which uploads)
 """
 import base64
 import json
@@ -17,8 +17,6 @@ sys.path.insert(0, str(ROOT / 'launcher'))
 import release  # noqa: E402
 
 LATEST = f'https://github.com/{release.GITHUB_REPO}/releases/latest/download/latest-envelope.json'
-INSTALLER = ('https://github.com/bymarvin/azeroth-survivors-together/releases/download/v0.0.30/'
-             'Azeroth-Survivors-Together-Installer.exe')
 
 
 def wanted():
@@ -43,10 +41,6 @@ def prepare():
     release.STATE.mkdir(parents=True, exist_ok=True)
     (release.STATE / 'release-signing-key.pem').write_text(os.environ['RELEASE_SIGNING_KEY'])
     (release.STATE / 'server-cert.pem').write_text(os.environ['SERVER_CERT'])
-    installer = ROOT / 'downloads/Azeroth-Survivors-Together-Installer.exe'
-    installer.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(INSTALLER, timeout=120) as response:
-        installer.write_bytes(response.read())  # release.py checks it against its pinned hash
 
 
 def dry_run():

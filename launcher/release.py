@@ -23,6 +23,11 @@ UPDATES = STATE / 'updates'
 GITHUB_REPO = 'calinadrian/asr'
 # Launchers up to 0.1.6 accept only this name for the launcher inside a release; newer ones install it as ASR.exe.
 ARCHIVE_EXE = 'WorldOfSurvive.exe'
+# Install game runs this exact reviewed co-op installer; the launcher refuses any file with another hash.
+# Review a new upstream release before changing the pin.
+INSTALLER_URL = ('https://github.com/bymarvin/azeroth-survivors-together/releases/download/v0.0.30/'
+                 'Azeroth-Survivors-Together-Installer.exe')
+INSTALLER_SHA = 'ec9c410f907090f2d1c265faf182c109047f7b3226396153d5af35fee9b17b72'
 
 
 def atomic(path, data):
@@ -60,21 +65,14 @@ def publish(version, sequence, output=None, stage_only=True):
         build = Path(scratch)
         (build / 'release-key.xml').write_text(xml)
         (build / 'server.cer').write_bytes(cert.public_bytes(serialization.Encoding.DER))
-        installer = ROOT / 'downloads/Azeroth-Survivors-Together-Installer.exe'
-        if not installer.is_file():
-            raise ValueError('The verified upstream co-op installer must be present in downloads/')
-        installer_sha = hashlib.sha256(installer.read_bytes()).hexdigest()
-        # Match the exact upstream installer already reviewed and installed for this project.
-        if installer_sha != 'ec9c410f907090f2d1c265faf182c109047f7b3226396153d5af35fee9b17b72':
-            raise ValueError('Unexpected co-op installer; review the new upstream release before updating this pin')
         (build / 'BuildInfo.cs').write_text(
             f'[assembly: System.Reflection.AssemblyVersion("{version}.0")]\n'
             f'[assembly: System.Reflection.AssemblyFileVersion("{version}.0")]\n'
             '[assembly: System.Reflection.AssemblyTitle("ASR")]\n'
             'namespace ASR { internal static class BuildInfo {\n'
             f'public const string Version = "{version}"; public const long Sequence = {sequence}L;\n'
-            'public const string InstallerUrl = "https://github.com/bymarvin/azeroth-survivors-together/releases/download/v0.0.30/Azeroth-Survivors-Together-Installer.exe";\n'
-            f'public const string InstallerSha = "{installer_sha}";\n' + '} }\n')
+            f'public const string InstallerUrl = "{INSTALLER_URL}";\n'
+            f'public const string InstallerSha = "{INSTALLER_SHA}";\n' + '} }\n')
         exe = build / 'ASR.exe'
         compiler = Path(os.environ.get('WINDIR', r'C:\Windows')) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
         subprocess.run([str(compiler), '/nologo', '/target:winexe', '/optimize+', '/platform:anycpu',
