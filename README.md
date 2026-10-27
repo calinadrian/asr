@@ -6,15 +6,17 @@ This repository holds what runs around the game: the Windows launcher, the co-op
 
 ## For players
 
-Download `ASR.exe` from the [latest release](https://github.com/calinadrian/asr/releases/latest) and run it. The first time, it downloads the game (about 1.4 GB) into your user folder, no administrator rights needed. After that, ASR.exe just opens the game. The game updates itself from this repository when it starts, and co-op connects to our server. Your characters, settings and saves are never touched by updates.
+Download and run **[ASR-Setup.exe](https://github.com/calinadrian/asr/releases/download/game/ASR-Setup.exe)**. It downloads the game (about 1.4 GB) into your user folder, no administrator rights needed, adds an **ASR** shortcut to your desktop and Start menu, and starts the game. That's all: from then on, open ASR from the shortcut. When a new version is out, the game tells you and updates itself. Co-op rooms are on our server. Your characters, settings and saves are never touched by updates.
 
 ## How updates reach players
 
 Every [release](https://github.com/calinadrian/asr/releases) here is an update. The launcher reads the newest release, checks its signature against the release key built into it, and only then installs it. A file that was changed or not signed by us is refused, wherever it was downloaded from.
 
-**The game:** it updates itself, inside the game, from the [`game`](https://github.com/calinadrian/asr/releases/tag/game) release, distributed with its author's permission. Publish a tested build with `.\asr publish-game <exe> <version>`, and data files with `.\asr publish-data <Data folder>`.
+**The game** updates itself, inside the game, from the [`game`](https://github.com/calinadrian/asr/releases/tag/game) release, distributed with its author's permission. ASR-Setup saves four settings for the player's Windows account that point the game there and at our co-op server (`launcher/Setup.cs`). Publish a tested build with `.\asr publish-game <exe> <version>` and data files with `.\asr publish-data <Data folder>`; players get the game's "A new version is out!" prompt the next time they start it. Pushing commits publishes nothing.
 
-**ASR.exe** (it has no window; it starts the game with our settings): raise both numbers in [`launcher/version.json`](launcher/version.json) and push. GitHub Actions builds, signs and publishes it; it updates itself quietly the next time a player opens ASR. A push that leaves `version.json` alone publishes nothing.
+**ASR-Setup.exe** is built with `.\asr setup` and lives on the `game` release next to the game files.
+
+**Old launchers:** players who installed with ASR.exe 0.1.8 or earlier keep using it; it still updates from the newest `v*` release (raise [`launcher/version.json`](launcher/version.json) and push to publish one).
 
 Details are in [launcher/README.md](launcher/README.md).
 
