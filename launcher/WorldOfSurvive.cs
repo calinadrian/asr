@@ -110,6 +110,8 @@ namespace WorldOfSurvive {
                 tunnel.ErrorLog = message => { try { File.AppendAllText(Path.Combine(root, "native-network.log"), DateTime.UtcNow.ToString("o") + " " + message + Environment.NewLine); } catch (IOException) { } };
                 var start = new ProcessStartInfo(executable) { WorkingDirectory = Path.GetDirectoryName(executable), UseShellExecute = false };
                 start.EnvironmentVariables["WOW_ROGUE_COOP_URL"] = tunnel.GameUrl;
+                // With presence on, the game browses co-op through its author's presence connection instead of this URL.
+                start.EnvironmentVariables["WOW_ROGUE_PRESENCE"] = "0";
                 using (Process game = Process.Start(start)) { game.WaitForExit(); return game.ExitCode; }
             }
         }

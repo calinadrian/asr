@@ -134,7 +134,7 @@ def serve():
         async with await asyncio.start_server(relay.handle, '0.0.0.0', config['relay_port'],
                 ssl=context, ssl_handshake_timeout=5, limit=2048, backlog=64) as listener:
             print(f"Public directory: https://{config['host']}:47770", flush=True)
-            print('Desktop in-game lobby: /coop/lobby/ (protocol 3, game 0.120.1; four players)', flush=True)
+            print('Desktop in-game lobby: /coop/lobby/ (protocol 3, games 0.120.1 and 0.120.4; four players)', flush=True)
             print('Authenticated relay: TCP 47771; 4 players per room. Ctrl+C stops the server.', flush=True)
             await listener.serve_forever()
     try:

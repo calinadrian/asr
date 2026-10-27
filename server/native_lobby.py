@@ -1,4 +1,4 @@
-"""Independent desktop lobby for the 0.120.1, protocol-3 binary client.
+"""Independent desktop lobby for the protocol-3 binary client (games 0.120.1 and 0.120.4).
 
 Each WebSocket owns its membership. Gameplay stays on the player host; payloads
 can travel only between that host and the guests of the same four-player room.
@@ -10,6 +10,9 @@ import threading
 import time
 
 from native_websocket import ProtocolError, WebSocket
+
+# Each verified with two real engines; rooms only list and admit their own version.
+SUPPORTED_VERSIONS = ('0.120.1', '0.120.4')
 
 
 def number(value):
@@ -180,7 +183,7 @@ class Lobby:
                 reader.string(256)
                 compression = reader.byte()
                 reader.finish()
-                if version != '0.120.1' or compression not in (0, 1):
+                if version not in SUPPORTED_VERSIONS or compression not in (0, 1):
                     raise ProtocolError('Unsupported game version')
                 player.version = version
                 return
