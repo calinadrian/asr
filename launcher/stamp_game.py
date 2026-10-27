@@ -21,8 +21,24 @@ def current(exe_bytes):
     return code.decode(), version.decode()
 
 
+# The game updates itself only when its file is named AzerothSurvivors (it compares the lowercased name with a
+# 16-byte constant). This keeps the load of the name, then jumps to the accepted branch, so ASR.exe updates too:
+#   cmp qword [rbp-0x38], 16 / mov rdx, [rbp-0x28] / jnz rejected
+#   -> mov rdx, [rbp-0x28] / jmp accepted / nop x5
+NAME_CHECK = bytes.fromhex('48837dc810' '488b55d8' '7543' '488b45c0f30f6f00')
+NAME_FREE = bytes.fromhex('488b55d8' 'eb72' '9090909090' '488b45c0f30f6f00')
+
+
+def allow_any_name(data):
+    if data.count(NAME_FREE) == 1:
+        return data
+    if data.count(NAME_CHECK) != 1:
+        raise ValueError('The game\'s file-name check was not found; this build needs a new analysis')
+    return data.replace(NAME_CHECK, NAME_FREE)
+
+
 def stamp(source, output, version, build=None):
-    data = Path(source).read_bytes()
+    data = allow_any_name(Path(source).read_bytes())
     old_code, old_version = current(data)
     build = build or subprocess.run(['git', 'rev-parse', '--short=8', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     if len(version) != len(old_version) or not re.fullmatch(r'\d+\.\d+\.\d+', version):

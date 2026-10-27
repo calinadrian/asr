@@ -1,32 +1,41 @@
-# ASR.exe and updates
+# Installer, game updates and the old launcher
 
-`ASR.exe` is the only program players run, and it has no window of its own. On every start it:
+## ASR-Setup.exe
 
-1. checks GitHub for a newer signed ASR.exe and, if there is one, installs it quietly and restarts;
-2. on the first run only, downloads the game into its folder's `game` directory with a small progress window (`base.json`, `patches.json` and `latest.json` from the `game` release, each file checked against its SHA-256, the executable last);
-3. starts the game with co-op on our server and game updates from our GitHub, and stays in the background until the game exits.
+Players download `ASR-Setup.exe` from the `game` release (built with `.\asr setup` from `launcher/Setup.cs`). It is a normal per-user installer, no administrator rights:
 
-A downloaded ASR.exe installs itself under `%LOCALAPPDATA%\ASR` without administrator rights and forwards to that copy (installations made before the rename keep `%LOCALAPPDATA%\WorldOfSurvive`). Installations that chose an existing game with launchers up to 0.1.7 keep using it through `desktop-game.txt`. Problems are written to `asr.log` and `native-network.log` in that folder. A build awaiting publication is in `downloads/launcher-candidate/ASR.exe`.
+1. **Install to:** `%LOCALAPPDATA%\Programs\ASR` by default, or any folder the player picks (an `ASR` folder is created inside it). It refuses folders it can't write to, which the game needs for its own updates, and folders with other files in them. Running it again finds the existing installation and only downloads what changed.
+2. It downloads `base.json`, `patches.json` and `latest.json` from the `game` release and the gzip parts they list, checks each file's SHA-256, and writes the game as `ASR.exe` last, so its presence means the installation is complete.
+3. It saves four user environment variables the game reads: `WOW_ROGUE_UPDATE_URL` and `WOW_ROGUE_DATA_URL` (our `game` release), `WOW_ROGUE_COOP_URL` (`wss://game.hassian.duckdns.org:47770/coop/lobby/`) and `WOW_ROGUE_PRESENCE=0` (otherwise the game browses its author's lobby).
+4. It adds an **ASR** Start menu shortcut (and a desktop one if chosen), an **ASR** entry in Settings > Apps, `Uninstall ASR.exe` and `asr-install.json` in the folder.
 
-ASR.exe updates come from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): it reads `releases/latest/download/latest-envelope.json`, then downloads `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 still read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. ASR.exe embeds our server certificate and release-verification public key; every update is checked against that key whichever host served it. This authenticates our updates; it is separate from Windows Authenticode code signing.
-
-The server supports games 0.120.1, 0.120.4 and 0.120.5 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
+Uninstalling removes the folder, the shortcuts, the entry and those four variables; characters live in the player's AppData and are kept. Nothing of ours runs after installation.
 
 ## Game updates
 
-The game updates itself, inside the game, from our pre-release `game` on GitHub: ASR.exe starts it with `WOW_ROGUE_UPDATE_URL` (`latest.json`, the executable) and `WOW_ROGUE_DATA_URL` (`patches.json`, data files) pointing there and `WOW_ROGUE_UPDATE_AUTO=1`, so at start it downloads a newer listed version, replaces itself and restarts without asking. Manifests list each file's size, SHA-256 and gzip parts named relative to the manifest; the game checks the size and hash but no signature, so anyone who controls the GitHub account controls what players run. `base.json` holds `patch.MPQ`, which only a fresh install needs. Publish with:
+The game updates itself from the `game` release: at start it reads `latest.json`, and when the version there is higher than its own it shows "A new version is out!", downloads the parts, replaces its executable and restarts. It updates data files from `patches.json` the same way. Manifests list each file's size, SHA-256 and gzip parts named relative to the manifest; the game checks the size and hash but no signature, so anyone who controls the GitHub account controls what players run. Publish with:
 
 ```powershell
 launcher\set_game_icon.ps1 -Exe path\to\AzerothSurvivors.exe
-.\asr publish-game path\to\AzerothSurvivors.exe 0.120.5 "What changed"
+.\asr publish-game path\to\AzerothSurvivors.exe 0.120.6 "What changed"
 .\asr publish-data path\to\Data
 ```
 
-The version must be the one the executable itself reports (`publish-game` refuses otherwise, since the game would download it again on every start), higher than the players' current one, and accepted by the server (`SUPPORTED_VERSIONS` in `server/native_lobby.py`, then restart the server) before you publish.
+`publish-game` stamps the executable it uploads (`launcher/stamp_game.py`):
 
-ASR.exe keeps a helper running for the lifetime of the game. It passes the game's `WOW_ROGUE_COOP_URL` override to a random, token-protected loopback WebSocket endpoint and forwards that connection through certificate-pinned TLS to `/coop/lobby/` on TCP 47770. It survives the game's restart after an update and ends when the game exits. There is no fallback to the original game's public lobby (`WOW_ROGUE_PRESENCE=0`). No save file is touched.
+- the version you give, which the game's updater and the co-op lobby read;
+- the first 8 characters of this repository's current commit, shown next to it in the game's corner label, e.g. `v0.120.6 (54467733)`; it refuses until that commit is pushed;
+- the file-name check removed: the game only updates itself when its file is named `AzerothSurvivors`, and players' copies are `ASR.exe`.
 
-## Publish an ASR.exe update
+The version must keep the length of the current one (`0.120.6`, not `0.121.10`), be higher than the players' current one, and be accepted by the server (`SUPPORTED_VERSIONS` in `server/native_lobby.py`, then restart the server) before you publish. `server/verify_native_desktop.py --game <exe>` runs two copies of a build in a private co-op party first.
+
+## The old launcher
+
+Players who installed with `ASR.exe` 0.1.8 or earlier have a launcher that starts the game with the same settings and keeps a helper running that forwards co-op through the certificate it pins on TCP 47770. It updates itself from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): `releases/latest/download/latest-envelope.json`, then `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. Each release is checked against the release-verification public key the launcher embeds.
+
+The server supports games 0.120.1, 0.120.4, 0.120.5 and 0.120.6 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
+
+## Publish an old-launcher update
 
 Edit `launcher/ASR.cs` and/or our files under `launcher/client/`, test locally, raise both `version` and `sequence` in `launcher/version.json`, and push to `main`:
 

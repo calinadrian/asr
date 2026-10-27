@@ -2,15 +2,13 @@
 
 ASR is an RPG survivor-like game: pick a hero, fight off endless waves, level up and choose upgrades, and survive as long as you can, alone or in co-op with up to four players.
 
-This repository holds what runs around the game: the Windows launcher, the co-op lobby server, and the signed update channel players receive updates through.
+This repository holds what runs around the game: its installer, the co-op lobby server, and the tools that publish game updates to this repository's releases.
 
 ## For players
 
-Download and run **[ASR-Setup.exe](https://github.com/calinadrian/asr/releases/download/game/ASR-Setup.exe)**. It downloads the game (about 1.4 GB) into your user folder, no administrator rights needed, adds an **ASR** shortcut to your desktop and Start menu, and starts the game. That's all: from then on, open ASR from the shortcut. When a new version is out, the game tells you and updates itself. Co-op rooms are on our server. Your characters, settings and saves are never touched by updates.
+Download and run **[ASR-Setup.exe](https://github.com/calinadrian/asr/releases/download/game/ASR-Setup.exe)**. Choose where to install (no administrator rights needed); it downloads the game (about 1.4 GB), adds **ASR** to your Start menu and, if you like, your desktop. From then on, open ASR from the shortcut. Uninstall it in Settings > Apps. When a new version is out, the game tells you and updates itself. Co-op rooms are on our server. Your characters, settings and saves are never touched by updates.
 
 ## How updates reach players
-
-Every [release](https://github.com/calinadrian/asr/releases) here is an update. The launcher reads the newest release, checks its signature against the release key built into it, and only then installs it. A file that was changed or not signed by us is refused, wherever it was downloaded from.
 
 **The game** updates itself, inside the game, from the [`game`](https://github.com/calinadrian/asr/releases/tag/game) release, distributed with its author's permission. ASR-Setup saves four settings for the player's Windows account that point the game there and at our co-op server (`launcher/Setup.cs`). Publish a tested build with `.\asr publish-game <exe> <version>` and data files with `.\asr publish-data <Data folder>`; players get the game's "A new version is out!" prompt the next time they start it. Pushing commits publishes nothing.
 
