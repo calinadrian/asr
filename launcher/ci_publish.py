@@ -39,10 +39,7 @@ def decide():
         output.write(f"publish={'true' if target else 'false'}\n")
 
 
-def publish():
-    target = wanted()
-    if not target:
-        return
+def prepare():
     release.STATE.mkdir(parents=True, exist_ok=True)
     (release.STATE / 'release-signing-key.pem').write_text(os.environ['RELEASE_SIGNING_KEY'])
     (release.STATE / 'server-cert.pem').write_text(os.environ['SERVER_CERT'])
@@ -50,10 +47,33 @@ def publish():
     installer.parent.mkdir(parents=True, exist_ok=True)
     with urllib.request.urlopen(INSTALLER, timeout=120) as response:
         installer.write_bytes(response.read())  # release.py checks it against its pinned hash
+
+
+def dry_run():
+    """Build and sign without publishing; the latest published launcher must accept the signature."""
+    prepare()
+    target = json.loads((ROOT / 'launcher/version.json').read_text())
+    subprocess.run([sys.executable, str(ROOT / 'launcher/release.py'), '--version', target['version'],
+                    '--sequence', str(target['sequence']), '--stage-only'], check=True)
+    candidate = ROOT / 'downloads/launcher-candidate'
+    (candidate / 'check.json').write_bytes((candidate / 'latest.json').read_bytes())
+    (candidate / 'check.json.sig').write_bytes((candidate / 'latest.sig').read_bytes())
+    published = candidate / 'published-ASR.exe'
+    with urllib.request.urlopen(f'https://github.com/{release.GITHUB_REPO}/releases/latest/download/ASR.exe', timeout=120) as response:
+        published.write_bytes(response.read())
+    subprocess.run([str(published), '--verify-release', str(candidate / 'check.json')], check=True)
+    print('Dry run passed: built and signed; the published launcher accepts this signature. Nothing was published.')
+
+
+def publish():
+    target = wanted()
+    if not target:
+        return
+    prepare()
     version, sequence = target['version'], str(target['sequence'])
     for mode in ('--stage-only', '--promote'):
         subprocess.run([sys.executable, str(ROOT / 'launcher/release.py'), '--version', version, '--sequence', sequence, mode], check=True)
 
 
 if __name__ == '__main__':
-    {'decide': decide, 'publish': publish}[sys.argv[1]]()
+    {'decide': decide, 'publish': publish, 'dry-run': dry_run}[sys.argv[1]]()
