@@ -45,6 +45,8 @@ processes=[];logs=[];homes=[]
 try:
  for role in ['host','guest']:
   folder=output/role;folder.mkdir(parents=True);(folder/'shots').mkdir()
+  (folder/'config').mkdir()
+  (folder/'config/config.toml').write_text('[cvars]\ngxWindow = \"1\"\ngxResolution = \"640x360\"\ngxMaximize = \"0\"\n')
   env={k:v for k,v in os.environ.items() if not k.startswith('WOW_ROGUE_')};env.update(WOW_ROGUE_COOP_URL=url,WOW_ROGUE_SAVE=str(folder/'characters.txt'),BENILLA_HOME=str(folder/'config'),WOW_NOSOUND='1',WOW_UNATTENDED='1',WOW_ROGUE_PRESENCE='0',WOW_ROGUE_UPDATE='0',WOW_ROGUE_TAPS='444,326',WOW_ROGUE_SHOTS=str(folder/'shots'),WOW_ROGUE_SHOTS_EVERY='10',RUST_LOG='error')
   log=(folder/'game.log').open('w');logs.append(log);homes.append(folder)
   p=subprocess.Popen([str(args.game)],cwd=args.game.parent,env=env,stdout=log,stderr=log);processes.append(p)
