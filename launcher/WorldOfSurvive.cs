@@ -323,7 +323,7 @@ namespace WorldOfSurvive {
         Button play, check, choose; CheckBox coop; bool busy; Process game;
         public Launcher(string directory, bool automatic) {
             root = directory; autoCheck = automatic;
-            Text = "World of Survive"; ClientSize = new Size(760, 560); MinimumSize = new Size(730, 550);
+            Text = "Azeroth Survivors: Realms"; ClientSize = new Size(760, 560); MinimumSize = new Size(730, 550);
             StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Segoe UI", 10); BackColor = Color.FromArgb(24, 29, 35); ForeColor = Color.FromArgb(244, 240, 229);
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(30), ColumnCount = 1, RowCount = 9 };
@@ -332,7 +332,7 @@ namespace WorldOfSurvive {
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            Label title = new Label { Text = "World of Survive", Font = new Font("Segoe UI", 25, FontStyle.Bold), Dock = DockStyle.Fill };
+            Label title = new Label { Text = "Azeroth Survivors: Realms", Font = new Font("Segoe UI", 25, FontStyle.Bold), Dock = DockStyle.Fill };
             Label endpoint = new Label { Text = "Windows desktop game", Dock = DockStyle.Fill, ForeColor = Color.FromArgb(196, 205, 213) };
             version = new Label { Text = "Launcher " + BuildInfo.Version, Dock = DockStyle.Fill };
             state = new Label { Text = "Ready to check for updates.", Dock = DockStyle.Fill, AutoEllipsis = true, AccessibleName = "Current task" };
@@ -383,7 +383,7 @@ namespace WorldOfSurvive {
         async Task Check() {
             if (busy) return;
             if (game != null && !game.HasExited) { Status("Close your game or co-op session before updating."); return; }
-            Busy(true); Status("Checking for World of Survive updates...");
+            Busy(true); Status("Checking for Azeroth Survivors: Realms updates...");
             try {
                 Release release = await Task.Run(() => WorldOfSurvive.Update.Stage(root, Status, Progress));
                 if (release == null) { Status("You're up to date."); return; }
@@ -441,7 +441,7 @@ namespace WorldOfSurvive {
             }
             ProcessStartInfo start = new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,
                 "--native-session " + Quote(root) + " " + Quote(executable)) { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
-            game = Process.Start(start); Status("Windows game opened. Its co-op menu now connects to World of Survive."); play.Text = "Play Windows game";
+            game = Process.Start(start); Status("Windows game opened. Its co-op menu now connects to Azeroth Survivors: Realms."); play.Text = "Play Windows game";
         }
         public void SavePreview(string path) { using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0,0,Width,Height)); image.Save(path); } }
     }
@@ -500,7 +500,7 @@ namespace WorldOfSurvive {
                 if (args.Length > 0 && (args[0] == "--verify-release" || args[0] == "--test-update")) {
                     Console.Error.WriteLine(error.Message); return 1;
                 }
-                MessageBox.Show(error.Message, "World of Survive", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1;
+                MessageBox.Show(error.Message, "Azeroth Survivors: Realms", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1;
             }
         }
     }
