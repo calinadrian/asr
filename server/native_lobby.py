@@ -12,15 +12,15 @@ import time
 from native_websocket import ProtocolError, WebSocket
 
 # Each verified with two real engines; rooms only list and admit their own version.
-SUPPORTED_VERSIONS = ('0.120.1', '0.120.4', '0.120.5', '0.120.6', '0.120.7', '0.120.8')
+SUPPORTED_VERSIONS = ('0.120.1', '0.120.4', '0.120.5', '0.120.6', '0.120.7', '0.120.8', '0.120.9')
 
-# Games connected without Play ASR see this first in the public list. The game's updater can't install
-# Play ASR, so players who installed before it existed only get reconnects by running ASR-Setup again.
+# Games connected without Play ASR see this first in the public list: their next in-game update (or running
+# ASR-Setup again) brings Play ASR.
 # Its code is longer than real codes (five characters), so it never matches a room.
 NOTICE_CODE = 'UPDATE'
 NOTICE_NAME = 'Update ASR for co-op reconnects'
-NOTICE_TEXT = 'Run ASR-Setup again: github.com/calinadrian/asr'
-NOTICE_JOIN = 'run ASR-Setup again (github.com/calinadrian/asr) so a run survives your internet dropping'
+NOTICE_TEXT = 'Restart ASR and accept the update'
+NOTICE_JOIN = 'restart ASR and accept the update so a run survives your internet dropping'
 
 
 def number(value):

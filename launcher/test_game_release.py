@@ -119,6 +119,21 @@ class PhotoPublishTests(unittest.TestCase):
         with patch.object(game_release.subprocess, 'run', download), patch.object(game_release, 'upload', upload):
             game_release.publish_zone_photos()
 
+    def test_game_publish_uploads_the_game_before_the_helper_that_fetches_it(self):
+        uploaded = []
+
+        class Pushed:
+            stdout = '  origin/main\n'
+
+        with patch.object(game_release.subprocess, 'run', lambda *a, **k: Pushed()), \
+                patch.object(game_release, 'require_zone_photos', lambda tag, folder: None), \
+                patch.object(game_release, 'prepare', lambda exe, version, notes, folder: None), \
+                patch.object(game_release, 'ensure_release', lambda tag: None), \
+                patch.object(game_release, 'describe', lambda *a: None), \
+                patch.object(game_release, 'upload', lambda tag, folder, manifests: uploaded.append(manifests)):
+            game_release.publish('game.exe', '0.120.9', 'notes')
+        self.assertEqual(uploaded, [['game.json', 'latest.json']])
+
     def test_game_publish_rejects_missing_photo_data(self):
         with tempfile.TemporaryDirectory() as scratch:
             folder = Path(scratch)

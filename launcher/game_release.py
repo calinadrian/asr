@@ -4,14 +4,18 @@ The game's updaters read JSON manifests whose files are gzip streams split into 
 named relative to the manifest; they check each result's size and SHA-256 but no
 signature, so only ship files you have tested.
 
-  latest.json   the executable (WOW_ROGUE_UPDATE_URL)
+  latest.json   what the game's updater installs (WOW_ROGUE_UPDATE_URL): the update helper, ASR-Setup
+                built from launcher/Setup.cs, which then brings in game.json's executable as ASR.exe and
+                adds Play ASR to installations made before it existed
+  game.json     the game executable, with the same version, read by ASR-Setup and the update helper
   patches.json  data patches the game keeps current itself (WOW_ROGUE_DATA_URL)
-  base.json     the base data a fresh install needs, read only by ASR.exe
+  base.json     the base data a fresh install needs, read only by ASR-Setup
 """
 import argparse
 import gzip
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -68,7 +72,8 @@ def upload(tag, folder, manifests):
     parts = sorted(str(p) for p in folder.glob('*.bin'))
     for start in range(0, len(parts), 20):
         subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber'] + parts[start:start + 20], check=True)
-    subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber'] + [str(folder / m) for m in manifests], check=True)
+    for manifest in manifests:  # one at a time, in the order given
+        subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber', str(folder / manifest)], check=True)
 
 
 def require_zone_photos(tag, folder):
@@ -83,8 +88,39 @@ def require_zone_photos(tag, folder):
     (folder / 'patches.json').unlink()
 
 
-def publish(exe, version, notes, tag=GAME_TAG):
+def build_setup(output):
+    """Compile ASR-Setup (launcher/Setup.cs and Relay.cs) as asr setup does."""
+    compiler = Path(os.environ.get('WINDIR', r'C:\Windows')) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+    subprocess.run([str(compiler), '/nologo', '/target:winexe', '/optimize+', f'/out:{output}',
+                    f'/win32icon:{ROOT / "launcher/asr.ico"}', '/reference:System.Windows.Forms.dll',
+                    '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll',
+                    '/reference:System.IO.Compression.dll', str(ROOT / 'launcher/Setup.cs'),
+                    str(ROOT / 'launcher/Relay.cs')], check=True)
+
+
+def prepare(exe, version, notes, folder, build=None):
+    """Write game.json, latest.json and their parts into folder."""
     import stamp_game
+    # The game reports this exact version, so its updater does not offer the same build again.
+    stamped = folder / 'AzerothSurvivors.exe'
+    stamp_game.stamp(exe, stamped, version, build)
+    # Windows shell resources are separate from the game's embedded runtime icon.
+    subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                    str(ROOT / 'launcher/set_game_icon.ps1'), '-Exe', str(stamped),
+                    '-Ico', str(ROOT / 'launcher/asr.ico')], check=True)
+    entry = pack(stamped, f'game-{version}', folder)
+    stamped.unlink()
+    (folder / 'game.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
+    # The game's updater installs this in the game's place; it then brings in game.json's executable.
+    helper = folder / 'update-helper.exe'
+    build_setup(helper)
+    digest = hashlib.sha256(helper.read_bytes()).hexdigest()
+    entry = pack(helper, f'update-{version}-{digest[:16]}', folder)
+    helper.unlink()
+    (folder / 'latest.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
+
+
+def publish(exe, version, notes, tag=GAME_TAG):
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
         raise ValueError('Use a numeric version such as 0.120.6')
     # The label shows this repository's commit, so it must be one GitHub has.
@@ -93,18 +129,10 @@ def publish(exe, version, notes, tag=GAME_TAG):
     with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
         require_zone_photos(tag, folder)
-        # The game reports this exact version, so its updater does not offer the same build again.
-        stamped = folder / 'AzerothSurvivors.exe'
-        stamp_game.stamp(exe, stamped, version)
-        # Windows shell resources are separate from the game's embedded runtime icon.
-        subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-                        str(ROOT / 'launcher/set_game_icon.ps1'), '-Exe', str(stamped),
-                        '-Ico', str(ROOT / 'launcher/asr.ico')], check=True)
-        entry = pack(stamped, f'game-{version}', folder)
-        stamped.unlink()
-        (folder / 'latest.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
+        prepare(exe, version, notes, folder)
         ensure_release(tag)
-        upload(tag, folder, ['latest.json'])
+        # game.json before latest.json: the helper a game downloads must find the game it brings in.
+        upload(tag, folder, ['game.json', 'latest.json'])
     describe(version, notes, tag)
     print(f'Published game {version} to https://github.com/{GITHUB_REPO}/releases/download/{tag}/latest.json')
 

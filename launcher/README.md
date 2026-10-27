@@ -5,7 +5,7 @@
 Players download `ASR-Setup.exe` from the `game` release (built with `.\asr setup` from `launcher/Setup.cs`). It is a normal per-user installer, no administrator rights:
 
 1. **Install to:** `%LOCALAPPDATA%\Programs\ASR` by default, or any folder the player picks (an `ASR` folder is created inside it). It refuses folders it can't write to, which the game needs for its own updates, and folders with other files in them. Running it again finds the existing installation and only downloads what changed.
-2. It downloads `base.json`, `patches.json` and `latest.json` from the `game` release and the gzip parts they list, checks each file's SHA-256, and writes the game as `ASR.exe` last, so its presence means the installation is complete.
+2. It downloads `base.json`, `patches.json` and `game.json` (`latest.json` on a release from before it existed) from the `game` release and the gzip parts they list, checks each file's SHA-256, and writes the game as `ASR.exe` last, so its presence means the installation is complete.
 3. It saves four user environment variables the game reads: `WOW_ROGUE_UPDATE_URL` and `WOW_ROGUE_DATA_URL` (our `game` release), `WOW_ROGUE_COOP_URL` (`wss://game.hassian.duckdns.org:47770/coop/lobby/`) and `WOW_ROGUE_PRESENCE=0` (otherwise the game browses its author's lobby).
 4. It adds an **ASR** Start menu shortcut (and a desktop one if chosen), an **ASR** entry in Settings > Apps, `Play ASR.exe`, `Uninstall ASR.exe` and `asr-install.json` in the folder.
 
@@ -15,11 +15,11 @@ Uninstalling removes the folder, the shortcuts, the entry and those four variabl
 
 The shortcuts start `Play ASR.exe --play`, a copy of ASR-Setup (`launcher/Relay.cs`). It starts the game with `WOW_ROGUE_COOP_URL` pointing at itself on loopback, a connection that never breaks, and carries the lobby traffic to the server's `/coop/relay/`. When the player's internet drops it reconnects every second and resumes the same lobby session; the server keeps the player's place for two minutes and both sides resend what the other missed. The game itself never reconnects to a party or run, so without this a dropped guest leaves the run and a dropped host's party ends. It stays running until the game exits (including the game's restart after an update) and writes `coop-relay.log` next to itself.
 
-What it does not cover: the host's game crashing or quitting still ends the party, and while a link is down the other players' copies of the run stand still. Starting `ASR.exe` directly connects to `/coop/lobby/` without resume. Players who installed before Play ASR existed get it by running ASR-Setup again.
+What it does not cover: the host's game crashing or quitting still ends the party, and while a link is down the other players' copies of the run stand still. Starting `ASR.exe` directly connects to `/coop/lobby/` without resume. Installations made before Play ASR existed get it with their next in-game update (below), or by running ASR-Setup again.
 
 ## Game updates
 
-The game updates itself from the `game` release: at start it reads `latest.json`, and when the version there is higher than its own it shows "A new version is out!", downloads the parts, replaces its executable and restarts. It updates data files from `patches.json` the same way. Manifests list each file's size, SHA-256 and gzip parts named relative to the manifest; the game checks the size and hash but no signature, so anyone who controls the GitHub account controls what players run. Publish with:
+The game updates itself from the `game` release: at start it reads `latest.json`, and when the version there is higher than its own it shows "A new version is out!", downloads the parts, replaces its executable and restarts. What `latest.json` names is not the game but the update helper, ASR-Setup built from the same source: restarted as `ASR.exe`, it shows "Updating ASR", downloads the game named in `game.json` (same version), adds `Play ASR.exe` and points the shortcuts at it in an ASR-Setup installation, swaps the game in and starts it (through Play ASR, or under the Play ASR that is already running). The game's updater can't add files or change shortcuts, so this is how installations made before Play ASR get it. If the download fails, `ASR.exe` stays the helper and opening ASR again retries; it keeps the replaced helper as `ASR.exe.old` until Play ASR next starts. Old launchers' games have no `asr-install.json`, so the helper only swaps the game in. It updates data files from `patches.json` the same way. Manifests list each file's size, SHA-256 and gzip parts named relative to the manifest; the game checks the size and hash but no signature, so anyone who controls the GitHub account controls what players run. Publish with:
 
 ```powershell
 launcher\set_game_icon.ps1 -Exe path\to\AzerothSurvivors.exe
@@ -42,7 +42,7 @@ The version must keep the length of the current one (`0.120.6`, not `0.121.10`),
 
 Players who installed with `ASR.exe` 0.1.8 or earlier have a launcher that starts the game with the same settings and keeps a helper running that forwards co-op through the certificate it pins on TCP 47770. It updates itself from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): `releases/latest/download/latest-envelope.json`, then `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. Each release is checked against the release-verification public key the launcher embeds.
 
-The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7 and 0.120.8 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
+The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7, 0.120.8 and 0.120.9 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
 
 ## Publish an old-launcher update
 

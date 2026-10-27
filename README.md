@@ -10,7 +10,7 @@ Download and run **[ASR-Setup.exe](https://github.com/calinadrian/asr/releases/d
 
 ## How updates reach players
 
-**The game** updates itself, inside the game, from the [`game`](https://github.com/calinadrian/asr/releases/tag/game) release, distributed with its author's permission. ASR-Setup saves four settings for the player's Windows account that point the game there and at our co-op server (`launcher/Setup.cs`). Publish a tested build with `.\asr publish-game <exe> <version>` and data files with `.\asr publish-data <Data folder>`; players get the game's "A new version is out!" prompt the next time they start it. Pushing commits publishes nothing.
+**The game** updates itself, inside the game, from the [`game`](https://github.com/calinadrian/asr/releases/tag/game) release, distributed with its author's permission. ASR-Setup saves four settings for the player's Windows account that point the game there and at our co-op server (`launcher/Setup.cs`). Publish a tested build with `.\asr publish-game <exe> <version>` (it also publishes the small update helper that brings Play ASR to older installations) and data files with `.\asr publish-data <Data folder>`; players get the game's "A new version is out!" prompt the next time they start it. Pushing commits publishes nothing.
 
 **ASR-Setup.exe** is built with `.\asr setup` and lives on the `game` release next to the game files.
 

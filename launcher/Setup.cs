@@ -1,7 +1,8 @@
 // ASR-Setup.exe: installs the game from our GitHub into a folder the player chooses, tells it where to
 // update from and where to play co-op, adds shortcuts and a Settings > Apps entry with an uninstaller. The shortcuts start
 // Play ASR.exe (this program again, with --play), which starts the game and keeps its co-op connection alive across internet
-// drops (Relay.cs) until the game exits. The game itself prompts when the game release on GitHub has a newer version.
+// drops (Relay.cs) until the game exits. The game itself prompts when the game release on GitHub has a newer version; what it
+// downloads is this program again, which finishes the update as ASR.exe (Game.Finish) so existing installations get Play ASR too.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -25,7 +26,8 @@ namespace ASR.Setup {
     public sealed class GameFiles { public GameFile[] patches; }
 
     public static class Game {
-        public const string Release = "https://github.com/calinadrian/asr/releases/download/game/";
+        // ASR_RELEASE_URL points the installer at a test copy of the release; the update helper uses the game's own update URL.
+        public static string Release = Environment.GetEnvironmentVariable("ASR_RELEASE_URL") ?? "https://github.com/calinadrian/asr/releases/download/game/";
         public const string ExeName = "ASR.exe";
         // Installed by the first ASR-Setup, and kept by players who update in-game; replaced on reinstall.
         public const string LegacyExe = "AzerothSurvivors.exe";
@@ -69,32 +71,95 @@ namespace ASR.Setup {
                     files.Add(new KeyValuePair<string, GameFile>(Path.Combine(folder, "Data", data.name), data));
                 }
             // The executable comes last: its presence means the installation is complete.
-            files.Add(new KeyValuePair<string, GameFile>(Path.Combine(folder, ExeName), Manifest<GameFile>("latest.json")));
-            foreach (var file in files)
-                if (file.Value.parts == null || file.Value.size < 1 || file.Value.size > 4L << 30 || file.Value.sha256 == null ||
-                    file.Value.parts.Any(p => p == null || p.url == null || p.size < 1 || p.size > 64 << 20 || !Regex.IsMatch(p.url, @"^[A-Za-z0-9._-]{1,120}$")))
-                    throw new InvalidDataException("Invalid game manifest.");
+            files.Add(new KeyValuePair<string, GameFile>(Path.Combine(folder, ExeName), Executable()));
+            foreach (var file in files) Check(file.Value);
             status("Checking files already on this PC...");
             var missing = files.Where(f => !Current(f.Key, f.Value)).ToList();
             long total = missing.Sum(f => f.Value.parts.Sum(p => p.size)), done = 0;
             foreach (var file in missing) {
-                string packed = file.Key + ".download", unpacked = file.Key + ".new";
-                using (FileStream output = File.Create(packed))
-                    foreach (Part part in file.Value.parts) {
-                        byte[] data = Download(Release + part.url, part.size);
-                        if (data.LongLength != part.size) throw new InvalidDataException("A download was incomplete. Run ASR-Setup again.");
-                        output.Write(data, 0, data.Length); done += data.Length; progress(done, total);
-                    }
+                string unpacked = file.Key + ".new";
+                status("Downloading " + Path.GetFileName(file.Key) + "...");
+                Fetch(file.Value, unpacked, added => { done += added; progress(done, total); });
                 status("Unpacking " + Path.GetFileName(file.Key) + "...");
-                using (FileStream input = File.OpenRead(packed)) using (var gzip = new GZipStream(input, CompressionMode.Decompress))
-                using (FileStream output = File.Create(unpacked)) gzip.CopyTo(output);
-                File.Delete(packed);
-                if (!Current(unpacked, file.Value)) { File.Delete(unpacked); throw new InvalidDataException(Path.GetFileName(file.Key) + " failed verification. Run ASR-Setup again."); }
                 if (File.Exists(file.Key)) File.Delete(file.Key);
                 File.Move(unpacked, file.Key);
             }
             string legacy = Path.Combine(folder, LegacyExe);
             if (File.Exists(legacy)) File.Delete(legacy);
+        }
+
+        // game.json names the game itself; latest.json names the update helper the game's own updater installs
+        // (Finish below). A release from before the helper existed has only latest.json, and it is the game.
+        static GameFile Executable() {
+            try { return Manifest<GameFile>("game.json"); }
+            catch (WebException error) {
+                var response = error.Response as HttpWebResponse;
+                if (response == null || response.StatusCode != HttpStatusCode.NotFound) throw;
+                return Manifest<GameFile>("latest.json");
+            }
+        }
+
+        static void Check(GameFile file) {
+            if (file.parts == null || file.size < 1 || file.size > 4L << 30 || file.sha256 == null ||
+                file.parts.Any(p => p == null || p.url == null || p.size < 1 || p.size > 64 << 20 || !Regex.IsMatch(p.url, @"^[A-Za-z0-9._-]{1,120}$")))
+                throw new InvalidDataException("Invalid game manifest.");
+        }
+
+        // Downloads and unpacks one file to target, verified; added reports each downloaded part's size.
+        static void Fetch(GameFile file, string target, Action<long> added) {
+            string packed = target + ".download";
+            using (FileStream output = File.Create(packed))
+                foreach (Part part in file.parts) {
+                    byte[] data = Download(Release + part.url, part.size);
+                    if (data.LongLength != part.size) throw new InvalidDataException("A download was incomplete. Try again.");
+                    output.Write(data, 0, data.Length); added(data.Length);
+                }
+            using (FileStream input = File.OpenRead(packed)) using (var gzip = new GZipStream(input, CompressionMode.Decompress))
+            using (FileStream output = File.Create(target)) gzip.CopyTo(output);
+            File.Delete(packed);
+            if (!Current(target, file)) { File.Delete(target); throw new InvalidDataException(Path.GetFileName(target) + " failed verification. Try again."); }
+        }
+
+        // The game's own updater downloads latest.json's file and restarts it as the game, so that file is this
+        // program, which then runs here as ASR.exe. It brings in the game named in game.json, adds Play ASR to an
+        // ASR-Setup installation (the game's updater can't add files or change shortcuts), swaps the game in and
+        // starts it. Until the swap ASR.exe stays this helper, so opening ASR again retries after a failure.
+        public static void Finish(string self, Action<string> status, Action<long, long> progress) {
+            string folder = Path.GetDirectoryName(self);
+            string feed = Environment.GetEnvironmentVariable("WOW_ROGUE_UPDATE_URL");
+            if (feed != null && feed.StartsWith("https://") && feed.EndsWith("/latest.json")) Release = feed.Substring(0, feed.Length - "latest.json".Length);
+            status("Checking for the new version...");
+            GameFile game = Manifest<GameFile>("game.json");
+            Check(game);
+            string fresh = Path.Combine(folder, "ASR-game.new");
+            long done = 0, total = game.parts.Sum(p => p.size);
+            status("Downloading ASR " + game.version + "...");
+            Fetch(game, fresh, added => { done += added; progress(done, total); });
+            status("Finishing the update...");
+            bool installed = File.Exists(Path.Combine(folder, Registration.Marker));
+            if (installed) {
+                byte[] helper = File.ReadAllBytes(self);
+                // Bytes only, as in Register; a copy that is running now (Play ASR during an update) is replaced next time.
+                foreach (string name in new[] { PlayName, Registration.Uninstaller }) {
+                    string path = Path.Combine(folder, name);
+                    try { if (!File.Exists(path) || !File.ReadAllBytes(path).SequenceEqual(helper)) File.WriteAllBytes(path, helper); }
+                    catch (IOException) { } catch (UnauthorizedAccessException) { }
+                }
+                foreach (string shortcut in Registration.Shortcuts(folder))
+                    if (File.Exists(shortcut)) Shortcut(shortcut, self);
+            }
+            // Windows lets a running program be renamed, not replaced; Play ASR deletes the .old copy later.
+            string old = self + ".old";
+            if (File.Exists(old)) File.Delete(old);
+            File.Move(self, old);
+            File.Move(fresh, self);
+            // Under Play ASR the game's URL is its loopback relay, and Play ASR is waiting for the game to restart.
+            bool relayed = (Environment.GetEnvironmentVariable("WOW_ROGUE_COOP_URL") ?? "").StartsWith("ws://127.0.0.1:");
+            string play = Path.Combine(folder, PlayName);
+            if (installed && !relayed && File.Exists(play))
+                Process.Start(new ProcessStartInfo(play, "--play") { WorkingDirectory = folder, UseShellExecute = false });
+            else
+                Process.Start(new ProcessStartInfo(self) { WorkingDirectory = folder, UseShellExecute = false });
         }
 
         public static void Configure() {
@@ -103,24 +168,29 @@ namespace ASR.Setup {
         }
 
         public static List<string> Shortcuts(string exe, bool desktop) {
-            Type shellType = Type.GetTypeFromProgID("WScript.Shell");
-            object shell = Activator.CreateInstance(shellType);
             var made = new List<string>();
             var folders = new List<string> { Environment.GetFolderPath(Environment.SpecialFolder.Programs) };
             if (desktop) folders.Add(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
             foreach (string folder in folders) {
                 string path = Path.Combine(folder, "ASR.lnk");
-                object link = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { path });
-                Type linkType = link.GetType();
-                linkType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, link, new object[] { Path.Combine(Path.GetDirectoryName(exe), PlayName) });
-                linkType.InvokeMember("Arguments", BindingFlags.SetProperty, null, link, new object[] { "--play" });
-                linkType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, link, new object[] { Path.GetDirectoryName(exe) });
-                linkType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, link, new object[] { exe + ",0" });
-                linkType.InvokeMember("Description", BindingFlags.SetProperty, null, link, new object[] { "ASR" });
-                linkType.InvokeMember("Save", BindingFlags.InvokeMethod, null, link, null);
+                Shortcut(path, exe);
                 made.Add(path);
             }
             return made;
+        }
+
+        // An ASR shortcut that starts Play ASR, with the game's icon.
+        static void Shortcut(string path, string exe) {
+            Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+            object shell = Activator.CreateInstance(shellType);
+            object link = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { path });
+            Type linkType = link.GetType();
+            linkType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, link, new object[] { Path.Combine(Path.GetDirectoryName(exe), PlayName) });
+            linkType.InvokeMember("Arguments", BindingFlags.SetProperty, null, link, new object[] { "--play" });
+            linkType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, link, new object[] { Path.GetDirectoryName(exe) });
+            linkType.InvokeMember("IconLocation", BindingFlags.SetProperty, null, link, new object[] { exe + ",0" });
+            linkType.InvokeMember("Description", BindingFlags.SetProperty, null, link, new object[] { "ASR" });
+            linkType.InvokeMember("Save", BindingFlags.InvokeMethod, null, link, null);
         }
 
         public static void Start(string exe) {
@@ -137,6 +207,8 @@ namespace ASR.Setup {
                     File.AppendAllText(logPath, DateTime.UtcNow.ToString("o") + " " + message + Environment.NewLine);
                 } catch (IOException) { } catch (UnauthorizedAccessException) { }
             };
+            // The update helper Finish swapped out last time.
+            try { File.Delete(exe + ".old"); } catch (IOException) { } catch (UnauthorizedAccessException) { }
             var relay = new Relay(new Uri(Environment.GetEnvironmentVariable("ASR_RELAY_URL") ?? Relay.ServerUrl), log);
             var start = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe), UseShellExecute = false };
             // Started right after installing, before Windows hands the new user settings to programs.
@@ -208,14 +280,21 @@ namespace ASR.Setup {
             }
         }
 
+        // The ASR shortcuts Setup recorded for the installation in folder.
+        public static List<string> Shortcuts(string folder) {
+            var record = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(folder, Marker)));
+            object listed;
+            var shortcuts = new List<string>();
+            if (record.TryGetValue("shortcuts", out listed) && listed is System.Collections.ArrayList)
+                foreach (object shortcut in (System.Collections.ArrayList)listed)
+                    if (shortcut is string && ((string)shortcut).EndsWith("ASR.lnk", StringComparison.OrdinalIgnoreCase)) shortcuts.Add((string)shortcut);
+            return shortcuts;
+        }
+
         // Removes what Setup added. Characters live in the user's AppData, outside the folder, and are kept.
         public static void Remove(string folder) {
             if (!File.Exists(Path.Combine(folder, Marker))) throw new InvalidOperationException("No ASR installation was found in " + folder + ".");
-            var record = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(Path.Combine(folder, Marker)));
-            object listed;
-            if (record.TryGetValue("shortcuts", out listed) && listed is System.Collections.ArrayList)
-                foreach (object shortcut in (System.Collections.ArrayList)listed)
-                    if (shortcut is string && ((string)shortcut).EndsWith("ASR.lnk", StringComparison.OrdinalIgnoreCase)) File.Delete((string)shortcut);
+            foreach (string shortcut in Shortcuts(folder)) File.Delete(shortcut);
             foreach (var setting in Game.Settings)
                 if (Environment.GetEnvironmentVariable(setting.Key, EnvironmentVariableTarget.User) == setting.Value)
                     Environment.SetEnvironmentVariable(setting.Key, null, EnvironmentVariableTarget.User);
@@ -340,6 +419,37 @@ namespace ASR.Setup {
         }
     }
 
+    // The window the update helper shows while it brings in the new version.
+    public sealed class Updating : Form {
+        readonly Label state = new Label { Location = new Point(24, 24), Size = new Size(392, 24), AutoEllipsis = true };
+        readonly ProgressBar bar = new ProgressBar { Location = new Point(24, 58), Size = new Size(392, 20), Style = ProgressBarStyle.Marquee, AccessibleName = "Update progress" };
+        bool failed;
+
+        Updating(string self) {
+            Text = "Updating ASR"; Icon = Icon.ExtractAssociatedIcon(self);
+            ClientSize = new Size(440, 100); FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false; MinimizeBox = true;
+            StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi; Font = new Font("Segoe UI", 10);
+            BackColor = Color.FromArgb(24, 29, 35); ForeColor = Color.FromArgb(244, 240, 229);
+            Controls.AddRange(new Control[] { state, bar });
+            Shown += async (s, e) => {
+                try { await Task.Run(() => Game.Finish(self, Status, Progress)); }
+                catch (Exception error) {
+                    failed = true;
+                    MessageBox.Show(this, "ASR couldn't finish updating: " + error.Message + "\n\nOpen ASR again to try again.", "ASR", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                Close();
+            };
+        }
+        void Status(string message) { if (InvokeRequired) { BeginInvoke(new Action<string>(Status), message); return; } state.Text = message; }
+        void Progress(long done, long total) {
+            if (InvokeRequired) { BeginInvoke(new Action<long, long>(Progress), done, total); return; }
+            bar.Style = ProgressBarStyle.Continuous; bar.Value = (int)Math.Min(100, done * 100 / Math.Max(1, total));
+        }
+        public static int Run(string self) {
+            using (var form = new Updating(self)) { Application.Run(form); return form.failed ? 1 : 0; }
+        }
+    }
+
     static class Program {
         static string Option(string[] args, string name) {
             for (int i = 0; i + 1 < args.Length; i++) if (args[i] == name) return args[i + 1];
@@ -351,6 +461,10 @@ namespace ASR.Setup {
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
             string defaultFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "ASR");
             try {
+                // Named as the game: the game's updater installed this program from latest.json and restarted it.
+                string self = Assembly.GetExecutingAssembly().Location, name = Path.GetFileName(self);
+                if (name.Equals(Game.ExeName, StringComparison.OrdinalIgnoreCase) || name.Equals(Game.LegacyExe, StringComparison.OrdinalIgnoreCase))
+                    return Updating.Run(self);
                 if (args.Length == 3 && args[0] == "--render-preview") {
                     using (Wizard form = new Wizard(defaultFolder, false)) { form.Show(); Application.DoEvents(); form.Preview(args[1], args[2]); }
                     return 0;
