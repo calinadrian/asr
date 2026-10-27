@@ -1,0 +1,19 @@
+name: Check integration source
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  native-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Check Python syntax
+        run: python -m compileall -q server launcher scripts
+      - name: Test native room and relay contracts
+        run: python -m unittest discover -s server -p 'test_native*.py' -v
