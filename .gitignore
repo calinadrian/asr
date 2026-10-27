@@ -1,0 +1,11 @@
+/downloads/
+/server/state/
+/server/player-pack/
+/Azeroth Survivors Together/
+/Data/
+__pycache__/
+*.pyc
+*.pem
+*.exe
+*.zip
+.env
