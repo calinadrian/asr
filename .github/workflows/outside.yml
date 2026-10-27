@@ -1,0 +1,18 @@
+name: Check server from outside
+# Connects to the live server the way the game does, from GitHub's network: public certificate, real rooms.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * *'
+permissions:
+  contents: read
+jobs:
+  lobby:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Host, join, four-player cap and relay on the live server
+        run: python server/verify_native_server.py --host game.hassian.duckdns.org --public

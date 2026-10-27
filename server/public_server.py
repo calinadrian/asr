@@ -9,7 +9,9 @@ import re
 import shutil
 import socket
 import ssl
+import sys
 import threading
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / 'server/state'
@@ -115,19 +117,47 @@ def handler(native):
     return Handler
 
 
-def serve():
-    from native_lobby import Lobby, SUPPORTED_VERSIONS
-    import mirror
-    config = json.loads(CONFIG.read_text())
+def tls(cert, key):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
-    context.load_cert_chain(STATE / 'server-cert.pem', STATE / 'server-key.pem')
+    context.load_cert_chain(cert, key)
+    return context
+
+
+def renew_game_certificate(holder):
+    import acme
+    while True:
+        try:
+            if acme.needs_renewal():
+                print(f'Game certificate renewed, valid until {acme.issue()}', flush=True)
+            holder['game'] = tls(acme.CERT, acme.KEY)
+        except Exception as error:  # the current certificate keeps serving until it can be renewed
+            print(f'Game certificate renewal failed: {error}', file=sys.stderr, flush=True)
+        time.sleep(24 * 3600)
+
+
+def serve():
+    from native_lobby import Lobby, SUPPORTED_VERSIONS
+    import acme
+    import mirror
+    config = json.loads(CONFIG.read_text())
+    # Launchers pin the self-signed certificate; the game itself trusts only public authorities,
+    # so it connects as acme.GAME_HOST and gets the Let's Encrypt certificate on the same port.
+    context = tls(STATE / 'server-cert.pem', STATE / 'server-key.pem')
+    holder = {'game': tls(acme.CERT, acme.KEY) if acme.CERT.exists() else None}
+
+    def choose(connection, name, _):
+        if name == acme.GAME_HOST and holder['game'] is not None:
+            connection.context = holder['game']
+    context.sni_callback = choose
+    threading.Thread(target=renew_game_certificate, args=(holder,), daemon=True).start()
     public = Server(('0.0.0.0', config['directory_port']), handler(Lobby()))
     # Handshakes run in each connection's thread, so a slow client cannot stall new connections.
     public.socket = context.wrap_socket(public.socket, server_side=True, do_handshake_on_connect=False)
     threading.Thread(target=mirror.run, args=(STATE,), daemon=True).start()
     print(f"ASR server: https://{config['host']}:{config['directory_port']}", flush=True)
-    print(f"In-game co-op lobby: /coop/lobby/ (games {', '.join(SUPPORTED_VERSIONS)}; four players)", flush=True)
+    print(f"In-game co-op lobby: /coop/lobby/ (games {', '.join(SUPPORTED_VERSIONS)}; four players); "
+          f"games connect to wss://{acme.GAME_HOST}:{config['directory_port']}/coop/lobby/", flush=True)
     print('Launcher updates: mirrored from GitHub Releases every 10 minutes. Ctrl+C stops the server.', flush=True)
     try:
         public.serve_forever()

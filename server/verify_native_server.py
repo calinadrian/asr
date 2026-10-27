@@ -12,13 +12,14 @@ from native_lobby import Reader, blob, number, string
 
 
 class Client:
-    def __init__(self, host, port, certificate):
-        context = ssl.create_default_context(cafile=str(certificate))
-        self.socket = context.wrap_socket(socket.create_connection((host, port), timeout=5), server_hostname=host)
+    def __init__(self, host, port, certificate, name=None):
+        # certificate None trusts public authorities, as the game does.
+        context = ssl.create_default_context(cafile=str(certificate) if certificate else None)
+        self.socket = context.wrap_socket(socket.create_connection((host, port), timeout=5), server_hostname=name or host)
         self.socket.settimeout(5)
         self.reader = self.socket.makefile('rb')
         key = base64.b64encode(os.urandom(16)).decode()
-        self.socket.sendall((f'GET /coop/lobby/ HTTP/1.1\r\nHost: {host}:{port}\r\nUpgrade: websocket\r\n'
+        self.socket.sendall((f'GET /coop/lobby/ HTTP/1.1\r\nHost: {name or host}:{port}\r\nUpgrade: websocket\r\n'
                              f'Connection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: {key}\r\n\r\n').encode())
         status = self.reader.readline()
         assert status.startswith(b'HTTP/1.1 101 '), status
@@ -56,11 +57,11 @@ class Client:
         self.socket.close()
 
 
-def verify(host, port, certificate):
+def verify(host, port, certificate, name=None):
     clients = []
     try:
         def connect():
-            client = Client(host, port, certificate)
+            client = Client(host, port, certificate, name)
             clients.append(client)
             return client
         owner = connect()
@@ -97,5 +98,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=47770)
+    parser.add_argument('--name', help='TLS name to request, e.g. game.hassian.duckdns.org (default: --host)')
+    parser.add_argument('--public', action='store_true', help='trust public certificate authorities, as the game does')
     args = parser.parse_args()
-    verify(args.host, args.port, Path(__file__).resolve().parent / 'state/server-cert.pem')
+    verify(args.host, args.port, None if args.public else Path(__file__).resolve().parent / 'state/server-cert.pem', args.name)
