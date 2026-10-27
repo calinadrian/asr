@@ -29,7 +29,7 @@ import argparse
 import tempfile
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--game',type=Path,required=True)
-parser.add_argument('--launcher',type=Path,default=ROOT/'downloads/launcher-candidate/WorldOfSurvive.exe')
+parser.add_argument('--launcher',type=Path,default=ROOT/'downloads/launcher-candidate/ASR.exe')
 args=parser.parse_args()
 args.game=args.game.resolve(strict=True);args.launcher=args.launcher.resolve(strict=True)
 parent=ROOT/'downloads/native-desktop-tests';parent.mkdir(parents=True,exist_ok=True)

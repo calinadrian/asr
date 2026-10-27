@@ -21,6 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / 'server/state'
 UPDATES = STATE / 'updates'
 GITHUB_REPO = 'calinadrian/asr'
+# Launchers up to 0.1.6 accept only this name for the launcher inside a release; newer ones install it as ASR.exe.
+ARCHIVE_EXE = 'WorldOfSurvive.exe'
 
 
 def atomic(path, data):
@@ -69,11 +71,11 @@ def publish(version, sequence, output=None, stage_only=True):
             f'[assembly: System.Reflection.AssemblyVersion("{version}.0")]\n'
             f'[assembly: System.Reflection.AssemblyFileVersion("{version}.0")]\n'
             '[assembly: System.Reflection.AssemblyTitle("ASR")]\n'
-            'namespace WorldOfSurvive { internal static class BuildInfo {\n'
+            'namespace ASR { internal static class BuildInfo {\n'
             f'public const string Version = "{version}"; public const long Sequence = {sequence}L;\n'
             'public const string InstallerUrl = "https://github.com/bymarvin/azeroth-survivors-together/releases/download/v0.0.30/Azeroth-Survivors-Together-Installer.exe";\n'
             f'public const string InstallerSha = "{installer_sha}";\n' + '} }\n')
-        exe = build / 'WorldOfSurvive.exe'
+        exe = build / 'ASR.exe'
         compiler = Path(os.environ.get('WINDIR', r'C:\Windows')) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
         subprocess.run([str(compiler), '/nologo', '/target:winexe', '/optimize+', '/platform:anycpu',
             '/out:' + str(exe), '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll',
@@ -84,8 +86,8 @@ def publish(version, sequence, output=None, stage_only=True):
             '/resource:' + str(STATE / 'server-cert.pem') + ',server-cert.pem',
             '/resource:' + str(ROOT / 'launcher/client/bootstrap.py') + ',client/bootstrap.py',
             '/resource:' + str(ROOT / 'launcher/client/settings.json') + ',client/settings.json',
-            str(ROOT / 'launcher/WorldOfSurvive.cs'), str(build / 'BuildInfo.cs')], check=True)
-        payload = {'WorldOfSurvive.exe': exe.read_bytes(), 'server-cert.pem': (STATE / 'server-cert.pem').read_bytes()}
+            str(ROOT / 'launcher/ASR.cs'), str(build / 'BuildInfo.cs')], check=True)
+        payload = {ARCHIVE_EXE: exe.read_bytes(), 'server-cert.pem': (STATE / 'server-cert.pem').read_bytes()}
         for path in sorted((ROOT / 'launcher/client').rglob('*')):
             if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc':
                 payload['client/' + path.relative_to(ROOT / 'launcher/client').as_posix()] = path.read_bytes()
@@ -104,14 +106,14 @@ def publish(version, sequence, output=None, stage_only=True):
         envelope = json.dumps(dict(manifest=base64.b64encode(raw).decode(),
                                    signature=base64.b64encode(signature).decode()), separators=(',', ':')).encode()
         atomic(release_root / f'releases/{digest}.zip', blob)
-        atomic(release_root / 'WorldOfSurvive.exe', payload['WorldOfSurvive.exe'])
+        atomic(release_root / 'ASR.exe', payload[ARCHIVE_EXE])
         atomic(release_root / f'manifests/{hashlib.sha256(raw).hexdigest()}.json', raw)
         atomic(release_root / f'manifests/{hashlib.sha256(raw).hexdigest()}.sig', signature)
         atomic(release_root / 'latest.sig', signature)
         atomic(latest_path, raw)
         atomic(release_root / 'latest-envelope.json', envelope)
-        destination = Path(output) if output else release_root / 'WorldOfSurvive.exe'
-        atomic(destination, payload['WorldOfSurvive.exe'])
+        destination = Path(output) if output else release_root / 'ASR.exe'
+        atomic(destination, payload[ARCHIVE_EXE])
         print(f'{"Staged" if stage_only else "Published"} {version} (sequence {sequence}): {destination}')
 
 
@@ -133,14 +135,14 @@ def promote(version, sequence):
     if len(blob) != manifest['size'] or hashlib.sha256(blob).hexdigest() != manifest['sha256']:
         raise ValueError('Candidate archive changed')
     with zipfile.ZipFile(io.BytesIO(blob)) as archive:
-        exe = archive.read('WorldOfSurvive.exe')
+        exe = archive.read(ARCHIVE_EXE)
     atomic(UPDATES / manifest['archive'], blob)
-    atomic(UPDATES / 'WorldOfSurvive.exe', exe)
+    atomic(UPDATES / 'ASR.exe', exe)
     atomic(UPDATES / 'latest.json', raw)
     atomic(UPDATES / 'latest.sig', signature)
     atomic(UPDATES / 'latest-envelope.json', json.dumps(dict(manifest=base64.b64encode(raw).decode(),
         signature=base64.b64encode(signature).decode()), separators=(',', ':')).encode())
-    atomic(ROOT / 'downloads/WorldOfSurvive.exe', exe)
+    atomic(ROOT / 'downloads/ASR.exe', exe)
     print(f'Published tested candidate {version} (sequence {sequence})')
     upload(version, sequence)
 
@@ -152,12 +154,12 @@ def upload(version, sequence):
     if manifest['version'] != version or manifest['sequence'] != sequence:
         raise ValueError('The published release does not match the requested release')
     # Launchers fetch releases/latest/download/latest-envelope.json, then download/v<version>/<sha256>.zip.
-    assets = [UPDATES / 'latest-envelope.json', UPDATES / manifest['archive'], UPDATES / 'WorldOfSurvive.exe']
+    assets = [UPDATES / 'latest-envelope.json', UPDATES / manifest['archive'], UPDATES / 'ASR.exe']
     result = subprocess.run(['gh', 'release', 'create', 'v' + version, '--repo', GITHUB_REPO, '--latest',
         '--title', f'ASR {version}', '--notes', f'Launcher update {version} (sequence {sequence}).'] + [str(a) for a in assets])
     if result.returncode:
         raise SystemExit(f'GitHub upload failed. The server channel is already updated; retry with:\n'
-                         f'  launcher\\release.py --version {version} --sequence {sequence} --upload')
+                         f'  asr upload {version} {sequence}')
     print(f'Uploaded {version} to https://github.com/{GITHUB_REPO}/releases')
 
 

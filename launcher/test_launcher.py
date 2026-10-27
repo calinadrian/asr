@@ -25,12 +25,13 @@ sys.path.insert(0, str(ROOT / 'server'))
 from native_lobby import Lobby
 native_lobby = Lobby()
 STATE = ROOT / 'server/state'
-EXE = ROOT / 'downloads/launcher-candidate/WorldOfSurvive.exe'
+EXE = ROOT / 'downloads/launcher-candidate/ASR.exe'
 key = serialization.load_pem_private_key((STATE / 'release-signing-key.pem').read_bytes(), password=None)
 routes = {}
 
 
 def signed_release(sequence, changes=None, unsafe=None, corrupt=False):
+    # Releases carry the launcher under the archive name every launcher accepts.
     payload = {'WorldOfSurvive.exe': EXE.read_bytes(), 'server-cert.pem': (STATE / 'server-cert.pem').read_bytes(),
                'client/bootstrap.py': (ROOT / 'launcher/client/bootstrap.py').read_bytes(),
                'client/settings.json': (ROOT / 'launcher/client/settings.json').read_bytes()}
@@ -72,7 +73,7 @@ class Handler(BaseHTTPRequestHandler):
 HARNESS = r'''
 using System;
 using System.IO;
-using WorldOfSurvive;
+using ASR;
 class Harness {
  static int Main(string[] args) {
   System.Net.ServicePointManager.SecurityProtocol=System.Net.SecurityProtocolType.Tls12;
@@ -102,8 +103,8 @@ class Harness {
     return 0;
    }
    if(args[0]=="cleanup") {
-    foreach(var p in System.Diagnostics.Process.GetProcessesByName("WorldOfSurvive")) {
-     try { if(String.Equals(p.MainModule.FileName,Path.Combine(root,"WorldOfSurvive.exe"),StringComparison.OrdinalIgnoreCase)) {
+    foreach(var p in System.Diagnostics.Process.GetProcessesByName("ASR")) {
+     try { if(String.Equals(p.MainModule.FileName,Path.Combine(root,"ASR.exe"),StringComparison.OrdinalIgnoreCase)) {
       p.CloseMainWindow(); if(!p.WaitForExit(5000)) p.Kill();
      } } catch(System.ComponentModel.Win32Exception) { }
     }
@@ -111,7 +112,7 @@ class Harness {
    }
    if(args[0]=="apply") { Update.Apply(root, File.ReadAllText(Path.Combine(root,"pending-update.txt"))); return 0; }
    if(args[0]=="locked") {
-    using(var file=new FileStream(Path.Combine(root, "WorldOfSurvive.exe"),FileMode.Open,FileAccess.ReadWrite,FileShare.None))
+    using(var file=new FileStream(Path.Combine(root, "ASR.exe"),FileMode.Open,FileAccess.ReadWrite,FileShare.None))
      Update.Apply(root,File.ReadAllText(Path.Combine(root,"pending-update.txt")));
     return 0;
    }

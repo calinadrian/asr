@@ -6,7 +6,7 @@ This repository holds what runs around the game: the Windows launcher, the co-op
 
 ## For players
 
-Download `WorldOfSurvive.exe` from the [latest release](https://github.com/calinadrian/asr/releases/latest) and run it. It installs itself into your user folder (no administrator rights), checks for updates every time it starts, and opens the game with co-op connected to our server. Your characters, settings and saves are never touched by updates.
+Download `ASR.exe` from the [latest release](https://github.com/calinadrian/asr/releases/latest) and run it. It installs itself into your user folder (no administrator rights), checks for updates every time it starts, and opens the game with co-op connected to our server. Your characters, settings and saves are never touched by updates.
 
 ## How updates reach players
 
@@ -15,12 +15,12 @@ Every [release](https://github.com/calinadrian/asr/releases) here is an update. 
 Pushing commits does **not** update anyone. An update goes out when the operator publishes one:
 
 ```powershell
-& '.\Azeroth Survivors Together\.coop-runtime\python.exe' launcher\release.py --version 0.1.5 --sequence 6 --stage-only
-& '.\Azeroth Survivors Together\.coop-runtime\python.exe' launcher\test_launcher.py
-.\Publish-Client-Update.cmd 0.1.5 6
+asr stage 0.1.8 9
+asr test
+asr publish 0.1.8 9
 ```
 
-This builds and signs the launcher, tests it, then publishes it on our server and as a GitHub release. Updates cover the launcher and its client files; the game executable itself is not distributed here. Details are in [launcher/README.md](launcher/README.md).
+This builds and signs the launcher, tests it, then publishes it on our server and as a GitHub release. Run `asr` alone for every command, including `asr server` and `asr play`. Updates cover the launcher and its client files; the game executable itself is not distributed here. Details are in [launcher/README.md](launcher/README.md).
 
 ## Running the server
 

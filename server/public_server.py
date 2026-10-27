@@ -97,7 +97,7 @@ def serve():
             if not self.path.startswith('/launcher/'):
                 return super().do_GET()
             relative = self.path.removeprefix('/launcher/')
-            if relative in ('latest-envelope.json', 'WorldOfSurvive.exe') or re.fullmatch(r'releases/[0-9a-f]{64}\.zip', relative):
+            if relative in ('latest-envelope.json', 'ASR.exe') or re.fullmatch(r'releases/[0-9a-f]{64}\.zip', relative):
                 path = STATE / 'updates' / relative
                 try:
                     with path.open('rb') as source:
@@ -161,7 +161,7 @@ def play_browser():
 def play():
     import subprocess
     launcher_root = ROOT / 'downloads/desktop-launcher'
-    launcher = launcher_root / 'WorldOfSurvive.exe'
+    launcher = launcher_root / 'ASR.exe'
     if not launcher.is_file():
         raise SystemExit('Build the ASR desktop launcher first.')
     # This project entry point is for the operator PC; remote players use the

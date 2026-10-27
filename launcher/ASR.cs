@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
-namespace WorldOfSurvive {
+namespace ASR {
     // The game uses its existing plain WebSocket override on loopback. Only this
     // helper connects to the public service, with the launcher's pinned TLS trust.
     public sealed class NativeTunnel : IDisposable {
@@ -131,7 +131,11 @@ namespace WorldOfSurvive {
         public static string ArchiveUrl(Release release) {
             return Pinned ? BaseUrl + release.archive : BaseUrl + "download/v" + release.version + "/" + release.sha256 + ".zip";
         }
-        public static readonly string ExeName = "WorldOfSurvive.exe";
+        public static readonly string ExeName = "ASR.exe";
+        // Launchers up to 0.1.6 accept only release files under this name, so it stays the archive's name for
+        // the launcher and is installed as ExeName.
+        public const string ArchiveExe = "WorldOfSurvive.exe";
+        public static string Installed(string path) { return path == ArchiveExe ? ExeName : path; }
         public static byte[] Resource(string name) {
             using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) {
                 if (stream == null) throw new InvalidDataException("Missing launcher resource: " + name);
@@ -164,7 +168,7 @@ namespace WorldOfSurvive {
                 string stem = part.Split('.')[0].ToUpperInvariant();
                 if (new[] { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" }.Contains(stem)) return false;
             }
-            return path == ExeName || path == "server-cert.pem" || path.StartsWith("client/", StringComparison.Ordinal);
+            return path == ArchiveExe || path == "server-cert.pem" || path.StartsWith("client/", StringComparison.Ordinal);
         }
         public static Release Verify(byte[] manifest, byte[] signature) {
             if (manifest.Length > 65536 || signature.Length != 256) throw new InvalidDataException("Invalid release metadata.");
@@ -187,7 +191,7 @@ namespace WorldOfSurvive {
                     throw new InvalidDataException("Unsafe update file.");
                 total += file.size;
             }
-            if (total > 256 * 1024 * 1024 || !paths.Contains(ExeName) || !paths.Contains("client/bootstrap.py"))
+            if (total > 256 * 1024 * 1024 || !paths.Contains(ArchiveExe) || !paths.Contains("client/bootstrap.py"))
                 throw new InvalidDataException("Incomplete or oversized release.");
             return release;
         }
@@ -196,7 +200,7 @@ namespace WorldOfSurvive {
             Uri uri = new Uri(url);
             if (uri.Scheme != "https") throw new InvalidDataException("HTTPS is required.");
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
-            request.UserAgent = "WorldOfSurvive/" + BuildInfo.Version;
+            request.UserAgent = "ASR/" + BuildInfo.Version;
             request.Timeout = 20000; request.ReadWriteTimeout = 30000;
             request.AllowAutoRedirect = !pin;
             if (pin) {
@@ -242,7 +246,7 @@ namespace WorldOfSurvive {
                 if (release.sequence < installed.sequence) throw new InvalidDataException("A rollback was refused.");
                 if (release.sequence == installed.sequence) {
                     if (Hash(bytes) != Hash(File.ReadAllBytes(receipt))) throw new InvalidDataException("A release sequence was reused.");
-                    if (installed.files.All(f => File.Exists(Path.Combine(root, f.path)) && FileHash(Path.Combine(root, f.path)) == f.sha256)) return null;
+                    if (installed.files.All(f => File.Exists(Path.Combine(root, Installed(f.path))) && FileHash(Path.Combine(root, Installed(f.path))) == f.sha256)) return null;
                 }
             }
             status("Downloading version " + release.version + "...");
@@ -287,7 +291,7 @@ namespace WorldOfSurvive {
                 if (previous.sequence > release.sequence) throw new InvalidDataException("A rollback was refused.");
             }
             foreach (ReleaseFile file in release.files) {
-                string target = Path.Combine(root, file.path);
+                string target = Path.Combine(root, Installed(file.path));
                 CheckLinks(Path.GetDirectoryName(target)); CheckLinks(Path.GetDirectoryName(Path.Combine(stage, file.path)));
                 if (Directory.Exists(target)) throw new IOException("An update target is a directory: " + file.path);
                 if ((File.Exists(target) && (File.GetAttributes(target) & FileAttributes.ReparsePoint) != 0) ||
@@ -300,7 +304,7 @@ namespace WorldOfSurvive {
             byte[] oldSignature = File.Exists(receipt + ".sig") ? File.ReadAllBytes(receipt + ".sig") : null;
             try {
                 foreach (ReleaseFile file in release.files) {
-                    string target = Path.Combine(root, file.path), copy = Path.Combine(backup, file.path);
+                    string target = Path.Combine(root, Installed(file.path)), copy = Path.Combine(backup, file.path);
                     Directory.CreateDirectory(Path.GetDirectoryName(target));
                     if (File.Exists(target)) { Directory.CreateDirectory(Path.GetDirectoryName(copy)); File.Copy(target, copy); }
                     changed.Add(file.path);
@@ -311,7 +315,7 @@ namespace WorldOfSurvive {
             } catch (Exception failure) {
                 List<string> restoreErrors = new List<string>();
                 foreach (string path in changed.AsEnumerable().Reverse()) {
-                    string target = Path.Combine(root, path), copy = Path.Combine(backup, path);
+                    string target = Path.Combine(root, Installed(path)), copy = Path.Combine(backup, path);
                     try { if (File.Exists(copy)) File.Copy(copy, target, true); else if (File.Exists(target)) File.Delete(target); }
                     catch { restoreErrors.Add(path); }
                 }
@@ -393,7 +397,7 @@ namespace WorldOfSurvive {
             if (game != null && !game.HasExited) { Status("Close your game or co-op session before updating."); return; }
             Busy(true); Status("Checking for ASR updates...");
             try {
-                Release release = await Task.Run(() => WorldOfSurvive.Update.Stage(root, Status, Progress));
+                Release release = await Task.Run(() => ASR.Update.Stage(root, Status, Progress));
                 if (release == null) { Status("You're up to date."); return; }
                 string stage = File.ReadAllText(Path.Combine(root, "pending-update.txt"));
                 string helper = Path.Combine(stage, "update-helper.exe");
@@ -413,8 +417,8 @@ namespace WorldOfSurvive {
                 if (!Installed()) {
                     Status("Downloading the co-op installer...");
                     await Task.Run(() => {
-                        byte[] installer = WorldOfSurvive.Update.Download(BuildInfo.InstallerUrl, 2 * 1024 * 1024, Progress, false);
-                        if (WorldOfSurvive.Update.Hash(installer) != BuildInfo.InstallerSha) throw new InvalidDataException("Installer checksum did not match.");
+                        byte[] installer = ASR.Update.Download(BuildInfo.InstallerUrl, 2 * 1024 * 1024, Progress, false);
+                        if (ASR.Update.Hash(installer) != BuildInfo.InstallerSha) throw new InvalidDataException("Installer checksum did not match.");
                         string path = Path.Combine(root, "coop-installer.exe"); File.WriteAllBytes(path, installer);
                         Status("Installing the game. The first download can take several minutes...");
                         ProcessStartInfo info = new ProcessStartInfo(path, "--dir " + Quote(Path.Combine(root, "game")) + " --no-shortcuts --no-open --no-pause") {
@@ -482,7 +486,10 @@ namespace WorldOfSurvive {
                         form.Show(); Application.DoEvents(); form.SavePreview(args[1]); form.Close(); return 0;
                     }
                 }
-                string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WorldOfSurvive");
+                string data = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                // Installations made before the rename keep their folder, with the co-op game installed in it.
+                string root = Path.Combine(data, "ASR");
+                if (!Directory.Exists(root) && Directory.Exists(Path.Combine(data, "WorldOfSurvive"))) root = Path.Combine(data, "WorldOfSurvive");
                 for (int i = 0; i + 1 < args.Length; i++) if (args[i] == "--root") root = Path.GetFullPath(args[i + 1]);
                 Update.CheckLinks(root); Directory.CreateDirectory(root);
                 for (int i = 0; i + 1 < args.Length; i++) if (args[i] == "--desktop-game") {
@@ -495,10 +502,14 @@ namespace WorldOfSurvive {
                 Update.Seed(root);
                 string target = Path.Combine(root, Update.ExeName);
                 if (!String.Equals(Path.GetFullPath(Assembly.GetExecutingAssembly().Location), target, StringComparison.OrdinalIgnoreCase)) {
-                    if (!File.Exists(target)) File.Copy(Assembly.GetExecutingAssembly().Location, target);
+                    // A launcher updated by 0.1.6 or older runs as WorldOfSurvive.exe; it hands over to a missing or older ASR.exe.
+                    string self = Assembly.GetExecutingAssembly().Location;
+                    if (!File.Exists(target) || (String.Equals(Path.GetFullPath(self), Path.Combine(root, Update.ArchiveExe), StringComparison.OrdinalIgnoreCase) &&
+                        new Version(FileVersionInfo.GetVersionInfo(target).FileVersion) < new Version(FileVersionInfo.GetVersionInfo(self).FileVersion)))
+                        File.Copy(self, target, true);
                     Process.Start(new ProcessStartInfo(target, "--root \"" + root + "\"" + (args.Contains("--no-auto-check") ? " --no-auto-check" : "")) { UseShellExecute = false }); return 0;
                 }
-                using (Mutex mutex = new Mutex(false, "Local\\WorldOfSurvive-" + Update.Hash(Encoding.UTF8.GetBytes(root)).Substring(0,16))) {
+                using (Mutex mutex = new Mutex(false, "Local\\ASR-" + Update.Hash(Encoding.UTF8.GetBytes(root)).Substring(0,16))) {
                     if (!mutex.WaitOne(0)) return 0;
                     try { Application.Run(new Launcher(root, !args.Contains("--no-auto-check"))); }
                     finally { mutex.ReleaseMutex(); }

@@ -8,7 +8,7 @@ Windows desktop. The desired player flow opens the game directly and offers upda
 
 ## Source and update distribution
 
-The public GitHub repository is `calinadrian/asr`. It stores our server and desktop integration source. The installed native game's current source is not present here; the independent Rust reconstruction in this workspace is a different build. Distributing a tested native game build and compiling that game from source are separate capabilities. The native game's existing in-game update interface should be used for the player-facing update flow. Launcher and client-file updates are delivered from its GitHub Releases, published by `Publish-Client-Update.cmd`; a push alone publishes nothing.
+The public GitHub repository is `calinadrian/asr`. It stores our server and desktop integration source. The installed native game's current source is not present here; the independent Rust reconstruction in this workspace is a different build. Distributing a tested native game build and compiling that game from source are separate capabilities. The native game's existing in-game update interface should be used for the player-facing update flow. Launcher and client-file updates are delivered from its GitHub Releases, published by `asr publish`; a push alone publishes nothing.
 
 ## Constraints
 
