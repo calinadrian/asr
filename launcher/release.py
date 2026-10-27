@@ -54,9 +54,7 @@ def publish(version, sequence, output=None, stage_only=True):
     encode = lambda n: base64.b64encode(n.to_bytes((n.bit_length() + 7) // 8, 'big')).decode()
     xml = '<RSAKeyValue><Modulus>' + encode(public.n) + '</Modulus><Exponent>' + encode(public.e) + '</Exponent></RSAKeyValue>'
     cert = x509.load_pem_x509_certificate((STATE / 'server-cert.pem').read_bytes())
-    build_root = ROOT / 'downloads/launcher-build'
-    build_root.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=build_root) as scratch:
+    with tempfile.TemporaryDirectory(prefix='asr-build-') as scratch:
         build = Path(scratch)
         (build / 'release-key.xml').write_text(xml)
         (build / 'server.cer').write_bytes(cert.public_bytes(serialization.Encoding.DER))

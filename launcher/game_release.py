@@ -63,7 +63,7 @@ def publish(exe, version, notes, tag=GAME_TAG):
         raise ValueError('Use a numeric version such as 0.120.5')
     if version.encode() not in Path(exe).read_bytes():
         raise ValueError(f'{exe} does not report version {version}; the game would download it again on every start')
-    with tempfile.TemporaryDirectory(dir=ROOT / 'downloads') as scratch:
+    with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
         entry = pack(Path(exe), f'game-{version}', folder)
         (folder / 'latest.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
@@ -74,7 +74,7 @@ def publish(exe, version, notes, tag=GAME_TAG):
 
 def publish_data(data, tag=GAME_TAG):
     data = Path(data)
-    with tempfile.TemporaryDirectory(dir=ROOT / 'downloads') as scratch:
+    with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
         patches, base = [], []
         for source in sorted(data.glob('*.MPQ'), key=lambda p: p.name.lower()):

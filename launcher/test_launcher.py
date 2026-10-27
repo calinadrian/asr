@@ -129,10 +129,8 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     base = f'https://127.0.0.1:{server.server_port}/launcher/'
-    test_parent = ROOT / 'downloads/launcher-tests'
-    test_parent.mkdir(exist_ok=True)
     try:
-        with tempfile.TemporaryDirectory(dir=test_parent) as temporary:
+        with tempfile.TemporaryDirectory(prefix='asr-test-') as temporary:
             folder = Path(temporary)
             shutil.copyfile(EXE, folder / EXE.name)
             (folder / 'Harness.cs').write_text(HARNESS)
