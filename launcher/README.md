@@ -20,24 +20,20 @@ The launcher starts a separate helper for the lifetime of the desktop game. It p
 
 ## Publish a client update
 
-Edit `launcher/ASR.cs` and/or our files under `launcher/client/`, then build a candidate and test it from this project folder:
+Edit `launcher/ASR.cs` and/or our files under `launcher/client/`, test locally, raise both `version` and `sequence` in `launcher/version.json`, and push to `main`:
 
 ```powershell
-asr stage 0.1.7 8
-asr test
+.\asr stage 0.1.9 10
+.\asr test
 ```
 
-When ready to publish that exact tested candidate:
+The `Publish launcher` workflow (`.github/workflows/publish.yml`, `launcher/ci_publish.py`) builds on a Windows runner, signs with the `RELEASE_SIGNING_KEY` secret, pins the `SERVER_CERT` secret, and creates the GitHub release. Its build is not the one `asr test` tested: the TLS test needs the server's private key, which stays on this PC, so test the same source before pushing. The server mirrors the release for launchers up to 0.1.4 within ten minutes.
 
-```powershell
-asr publish 0.1.7 8
-```
+To publish from this PC instead (for example if Actions are down), run `.\asr publish <version> <sequence>` after staging and testing; it promotes that exact tested candidate.
 
 Both the version and integer sequence must increase. Staging compiles the executable, packages our client files and signs the release with RSA/SHA-256 without changing the live channel. The publish command promotes that candidate without rebuilding it, atomically publishes its manifest/signature envelope on our server, then creates the GitHub release `v<version>` with `gh` (log in once with `gh auth login`). If the GitHub step fails, retry it alone with `asr upload <version> <sequence>`. Pushing commits to GitHub does not publish anything; only this command does. Players receive it on their next launcher start or when they choose Check for updates. A running game is never forcibly interrupted; the update check is blocked while that launcher's room browser is running.
 
 The update package can replace only the launcher, `server-cert.pem` and files under `client/`. Inside the package the launcher is still named `WorldOfSurvive.exe`, the only name launchers up to 0.1.6 accept; 0.1.7 and newer install it as `ASR.exe`. A launcher that an older one updated starts as `WorldOfSurvive.exe` once and hands over to `ASR.exe`. It cannot target the game's characters, settings, saves or third-party binaries. Download and extraction limits, per-file hashes, path checks and signature checks run before installation. A separate copy of the launcher waits for the old process to exit before replacing it; an ordinary apply failure restores files from a backup. Staging folders retain backups for recovery. Updates require free space and write access; process crashes or power loss can require retrying the launcher.
-
-The existing co-op updater continues to handle the upstream game and co-op mod through `Start-Coop.cmd`. Our updater does not turn changes to the repository's independent Rust game into compatible co-op patches: changing that executable requires rebuilding the game and updating/testing the co-op mod's supported build profiles. Add such a distribution mechanism only after compatibility is established.
 
 ## Operator files
 

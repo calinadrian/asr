@@ -1,0 +1,35 @@
+name: Publish launcher
+# A push that raises launcher/version.json above the latest release builds, signs and publishes the launcher.
+on:
+  push:
+    branches: [main]
+    paths: ['launcher/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: publish-launcher
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install cryptography
+        run: python -m pip install --disable-pip-version-check cryptography==50.0.2
+      - name: Decide whether version.json is a new release
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python launcher/ci_publish.py decide
+      - name: Check server contracts
+        if: steps.decide.outputs.publish == 'true'
+        run: python -m unittest discover -s server -p "test_native*.py"
+      - name: Build, sign and publish
+        if: steps.decide.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          SERVER_CERT: ${{ secrets.SERVER_CERT }}
+        run: python launcher/ci_publish.py publish

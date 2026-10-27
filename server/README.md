@@ -1,21 +1,32 @@
-# Public co-op hosting
+# ASR server
 
-Normal desktop Play now uses the game's own Co-op menu through the native WebSocket service at `/coop/lobby/` on the same HTTPS port, 47770. This is a separate room list from the optional browser mod described below. It supports desktop games 0.120.1 and 0.120.4 / protocol 3, routes native host/guest packets within each room, and enforces at most four people including the host. Choose four in the native Host form. The game's original five-player choice does not override the server limit. No additional router port is required for native play.
+`asr server` runs everything players connect to, on HTTPS port 47770:
 
-The updated launcher supplies a pinned TLS tunnel automatically; the game's native WebSocket endpoint stays on loopback. On the operator PC use the launcher's existing `--local-server` setting to avoid router hairpin NAT. Other players use the public hostname. A server restart closes rooms in both directories. Test with `python -m unittest discover -s server -p 'test_native*.py'`; the native desktop integration check is `server/verify_native_desktop.py` with the selected game path and candidate launcher. These checks do not establish reachability from a second internet connection.
+- `/coop/lobby/`: the in-game co-op lobby. It supports games 0.120.1 and 0.120.4 (protocol 3), relays game traffic between the players of each room and allows at most four people per room, host included. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player. Rooms live in memory, so a restart closes them.
+- `/launcher/`: the update channel for launchers up to 0.1.4. Every 10 minutes the server copies the newest signed release from GitHub into `server/state/updates/` (`server/mirror.py`), so those players keep updating. Newer launchers read GitHub directly.
 
-Run `asr play` on this PC for the desktop game and its in-game Co-op menu. It uses the game selected in `downloads/desktop-launcher/desktop-game.txt`. If no desktop game is selected, it opens the native launcher so you can choose one. The optional browser path remains available with `public_server.py play-browser`.
+Leave it running; it does not start by itself after a reboot. Launchers keep the game's co-op connection on loopback and forward it to this port with certificate pinning.
 
-Run `asr server` from the project folder and leave it running. It serves the room directory over HTTPS on TCP 47770 and the authenticated relay on TCP 47771. Room state lives in memory; restarting closes existing rooms and relay connections.
+## This PC
 
-On the router, reserve this PC's address, `192.168.100.10`, then forward TCP 47770 and TCP 47771 to that address using the same internal ports. Optionally forward TCP 47774 for direct connections when this PC hosts a match. The ISP must provide a reachable public IPv4; port forwarding cannot bypass carrier-grade NAT. Keep `hassian.duckdns.org` updated when the public address changes.
+`asr play` opens the game in `downloads/desktop-launcher/desktop-game.txt` (`D:\Personal\World of Survival\AzerothSurvivors.exe`) with co-op on this server over the LAN, which avoids the router's missing hairpin NAT.
 
-Run `server/Enable-Coop-Firewall.ps1` in an administrator PowerShell to allow TCP 47770 and 47771 for this game's Python runtime on Ethernet's Public network profile only. Direct inbound gameplay on 47774 needs a separate firewall rule if desired; the relay works without it. The internal relay authentication service listens only on `127.0.0.1:47769`; it needs no forwarding.
+## Router and firewall
 
-For the optional browser mod, use `public_server.py play-browser`, create a public room, choose EU, and set Connection settings to host address `auto` and game port **47774**. The default game port, 47771, is reserved for our relay. This launcher uses our relay without changing router mappings. For optional direct connections from outside, use `hassian.duckdns.org` as the room's host address and also allow/forward TCP 47774. Other PCs can leave their game port at 47771 and host address on auto; they can use the relay when direct connections fail. Every match needs its player host's game to stay running, with at most four players per room.
+Reserve this PC's address, `192.168.100.10`, and forward TCP 47770 to it. The ISP must provide a reachable public IPv4. Keep `hassian.duckdns.org` pointing at the current public address.
 
-Give players `server/state/World-of-Survive-Player-Pack.zip`. They first install [Azeroth Survivors Together](https://github.com/bymarvin/azeroth-survivors-together/releases/latest), extract the pack into its game folder, and run `Join-World-of-Survive.cmd`. Their room list comes from `https://hassian.duckdns.org:47770`. The pack contains a public certificate trusted only by that launcher process. It contains no server private key. Everyone in a room needs the same game build.
+Run `server/Enable-Coop-Firewall.ps1` once in an administrator PowerShell. It allows TCP 47770 for `tools\python\python.exe` on Ethernet's Public profile only.
 
-The server's certificate and private key are in `server/state/`. Keep that folder private. The certificate lasts one year. To change the hostname or renew the certificate, stop the server, archive that state folder, run `public_server.py configure --host <hostname> --lan <LAN-IP>` using the installed game's Python, and distribute the newly generated player pack. An ordinary restart preserves the certificate.
+## Certificate
 
-Run `server/verify_server.py` with the game's Python while the server runs to verify HTTPS, room capacity, authentication and relay traffic locally. Internet reachability and gameplay performance need a second computer outside your home network. Initial hosting has no automatic Windows startup; start it manually after a reboot.
+The server's certificate and private key are in `server/state/`; keep that folder private. Launchers pin this certificate, so renewing it needs a launcher release that trusts both the old and new certificate before the server switches. The certificate lasts one year. `public_server.py configure --host <hostname> --lan <LAN-IP>` creates one on a fresh `server/state`.
+
+## Checks
+
+```powershell
+tools\python\python.exe -m unittest discover -s server -p "test_native*.py"
+tools\python\python.exe server\verify_native_server.py
+tools\python\python.exe server\verify_native_desktop.py --game "D:\Personal\World of Survival\AzerothSurvivors.exe"
+```
+
+The second needs the running server; the third starts two real games against a private test lobby. None of them prove reachability from outside your network.
