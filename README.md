@@ -30,10 +30,6 @@ See [server/README.md](server/README.md). Local checks:
 python -m unittest discover -s server -p "test_native*.py"
 ```
 
-## What is not in this repository
-
-Game art and data, installed game binaries, player saves, the server's TLS private key and the release signing key. Runtime dependencies are supplied separately. The co-op mode builds on [Azeroth Survivors Together](https://github.com/bymarvin/azeroth-survivors-together); its authorship and notices are preserved.
-
 ## License
 
 Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
