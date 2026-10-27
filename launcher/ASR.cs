@@ -115,6 +115,7 @@ namespace ASR {
                 // The game updates itself from our GitHub release, then restarts with this same environment.
                 start.EnvironmentVariables["WOW_ROGUE_UPDATE_URL"] = GameUpdateUrl;
                 start.EnvironmentVariables["WOW_ROGUE_UPDATE_AUTO"] = "1";
+                start.EnvironmentVariables["WOW_ROGUE_DATA_URL"] = GameInstall.ReleaseUrl + "patches.json";
                 Process game = Process.Start(start);
                 while (true) {
                     game.WaitForExit(); int code = game.ExitCode; game.Dispose();
@@ -123,7 +124,7 @@ namespace ASR {
                 }
             }
         }
-        public const string GameUpdateUrl = "https://github.com/calinadrian/asr/releases/download/game/latest.json";
+        public const string GameUpdateUrl = GameInstall.ReleaseUrl + "latest.json";
         // Keeps the tunnel open across the game's restart after it installs an update.
         static Process Restarted(string executable) {
             DateTime deadline = DateTime.UtcNow.AddSeconds(20);
@@ -137,6 +138,56 @@ namespace ASR {
                 Thread.Sleep(500);
             }
             return null;
+        }
+    }
+    public sealed class GamePart { public string url; public long size; }
+    public sealed class GameFile { public string name; public string version; public long size; public string sha256; public GamePart[] parts; }
+    public sealed class GameFiles { public GameFile[] patches; }
+    // Installs the game from our GitHub release in the format the game's own updaters read: gzip parts per file.
+    public static class GameInstall {
+        public const string ReleaseUrl = "https://github.com/calinadrian/asr/releases/download/game/";
+        public const string ExeName = "AzerothSurvivors.exe";
+        static T Manifest<T>(string name) {
+            return Update.Json.Deserialize<T>(Encoding.UTF8.GetString(Update.Download(ReleaseUrl + name, 1024 * 1024, null, false)));
+        }
+        static bool Current(string path, GameFile file) {
+            return File.Exists(path) && new FileInfo(path).Length == file.size && Update.FileHash(path) == file.sha256;
+        }
+        public static void Run(string folder, Action<string> status, Action<long,long> progress) {
+            Update.CheckLinks(folder); Directory.CreateDirectory(Path.Combine(folder, "Data"));
+            var files = new List<KeyValuePair<string, GameFile>>();
+            foreach (string list in new[] { "base.json", "patches.json" })
+                foreach (GameFile data in Manifest<GameFiles>(list).patches) {
+                    if (data.name == null || !System.Text.RegularExpressions.Regex.IsMatch(data.name, @"^[A-Za-z0-9-]{1,40}\.MPQ$"))
+                        throw new InvalidDataException("Unsafe game data name.");
+                    files.Add(new KeyValuePair<string, GameFile>(Path.Combine(folder, "Data", data.name), data));
+                }
+            // The executable comes last: its presence means the installation is complete.
+            files.Add(new KeyValuePair<string, GameFile>(Path.Combine(folder, ExeName), Manifest<GameFile>("latest.json")));
+            foreach (var file in files)
+                if (file.Value.parts == null || file.Value.size < 1 || file.Value.size > 4L << 30 || file.Value.sha256 == null ||
+                    file.Value.parts.Any(p => p == null || p.url == null || p.size < 1 || p.size > 64 << 20 || !System.Text.RegularExpressions.Regex.IsMatch(p.url, @"^[A-Za-z0-9._-]{1,120}$")))
+                    throw new InvalidDataException("Invalid game manifest.");
+            status("Checking installed game files...");
+            var missing = files.Where(f => !Current(f.Key, f.Value)).ToList();
+            long total = missing.Sum(f => f.Value.parts.Sum(p => p.size)), done = 0;
+            foreach (var file in missing) {
+                status("Downloading " + Path.GetFileName(file.Key) + "...");
+                string packed = file.Key + ".download", unpacked = file.Key + ".new";
+                using (FileStream output = File.Create(packed))
+                    foreach (GamePart part in file.Value.parts) {
+                        byte[] data = Update.Download(ReleaseUrl + part.url, part.size, null, false);
+                        if (data.LongLength != part.size) throw new InvalidDataException("A game download was incomplete.");
+                        output.Write(data, 0, data.Length); done += data.Length; progress(done, total);
+                    }
+                using (FileStream input = File.OpenRead(packed)) using (var gzip = new GZipStream(input, CompressionMode.Decompress))
+                using (FileStream output = File.Create(unpacked)) gzip.CopyTo(output);
+                File.Delete(packed);
+                if (!Current(unpacked, file.Value)) { File.Delete(unpacked); throw new InvalidDataException(Path.GetFileName(file.Key) + " failed verification. Try again."); }
+                if (File.Exists(file.Key)) File.Delete(file.Key);
+                File.Move(unpacked, file.Key);
+            }
+            status("The game is installed.");
         }
     }
     public sealed class ReleaseFile { public string path; public long size; public string sha256; }
@@ -352,118 +403,78 @@ namespace ASR {
         }
     }
 
-    public sealed class Launcher : Form {
-        readonly string root; readonly bool autoCheck;
-        Label state, version; TextBox log; ProgressBar progress;
-        Button play, check; bool busy; Process game;
-        public Launcher(string directory, bool automatic) {
-            root = directory; autoCheck = automatic;
-            Text = "ASR"; ClientSize = new Size(760, 560); MinimumSize = new Size(730, 550);
+    // Shown only while a first run downloads the game.
+    public sealed class InstallWindow : Form {
+        readonly Label state; readonly ProgressBar bar;
+        public InstallWindow() {
+            Text = "ASR"; Icon = Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location);
+            ClientSize = new Size(520, 150); FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Segoe UI", 10); BackColor = Color.FromArgb(24, 29, 35); ForeColor = Color.FromArgb(244, 240, 229);
-            TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(30), ColumnCount = 1, RowCount = 9 };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            Label title = new Label { Text = "ASR", Font = new Font("Segoe UI", 25, FontStyle.Bold), Dock = DockStyle.Fill };
-            Label endpoint = new Label { Text = "Survive the waves, alone or with friends", Dock = DockStyle.Fill, ForeColor = Color.FromArgb(196, 205, 213) };
-            version = new Label { Text = "Launcher " + BuildInfo.Version, Dock = DockStyle.Fill };
-            state = new Label { Text = "Ready to check for updates.", Dock = DockStyle.Fill, AutoEllipsis = true, AccessibleName = "Current task" };
-            progress = new ProgressBar { Dock = DockStyle.Fill, Minimum = 0, Maximum = 100, AccessibleName = "Download progress" };
-            log = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(32, 39, 47), ForeColor = ForeColor, BorderStyle = BorderStyle.FixedSingle, AccessibleName = "Activity log" };
-            FlowLayoutPanel actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-            play = new Button { Text = NativeGame() != null ? "Play" : "Install game", Width = 180, Height = 42, BackColor = Color.FromArgb(232, 182, 76), ForeColor = Color.FromArgb(24,29,35), FlatStyle = FlatStyle.Flat, AccessibleName = "Install or play the game" };
-            check = new Button { Text = "Check for updates", Width = 175, Height = 42, FlatStyle = FlatStyle.Flat, ForeColor = ForeColor };
-            actions.Controls.Add(play); actions.Controls.Add(check);
-            layout.Controls.Add(title); layout.Controls.Add(endpoint); layout.Controls.Add(version); layout.Controls.Add(state);
-            layout.Controls.Add(progress); layout.Controls.Add(log); layout.Controls.Add(new Panel()); layout.Controls.Add(new Panel()); layout.Controls.Add(actions); Controls.Add(layout);
-            AcceptButton = play;
-            play.Click += async (s,e) => await RunGame(); check.Click += async (s,e) => await Check();
-            Shown += async (s,e) => { Note(NativeGame() != null ? "The game is installed. It updates itself when it starts." : "Press Install game to download the game."); if (autoCheck) await Check(); };
-            FormClosing += (s,e) => { if (busy) { e.Cancel = true; Status("Wait for the current operation to finish."); } };
+            Label title = new Label { Text = "Installing ASR", Font = new Font("Segoe UI", 15, FontStyle.Bold), Location = new Point(24, 18), AutoSize = true };
+            state = new Label { Text = "Preparing...", Location = new Point(26, 60), Size = new Size(470, 24), AutoEllipsis = true, ForeColor = Color.FromArgb(196, 205, 213) };
+            bar = new ProgressBar { Location = new Point(26, 96), Size = new Size(468, 22), Style = ProgressBarStyle.Marquee, AccessibleName = "Download progress" };
+            Controls.Add(title); Controls.Add(state); Controls.Add(bar);
         }
-        bool Installed() { return File.Exists(Path.Combine(root, "game", "Start-Coop.cmd")); }
-        string NativeGame() {
+        public void Status(string message) { if (InvokeRequired) { BeginInvoke(new Action<string>(Status), message); return; } state.Text = message; }
+        public void Progress(long done, long total) {
+            if (InvokeRequired) { BeginInvoke(new Action<long,long>(Progress), done, total); return; }
+            bar.Style = ProgressBarStyle.Continuous; bar.Value = (int)Math.Min(100, done * 100 / Math.Max(1, total));
+            state.Text = String.Format("Downloading the game: {0:0.0} of {1:0.0} GB", done / 1e9, total / 1e9);
+        }
+        public void SavePreview(string path) { using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0,0,Width,Height)); image.Save(path); } }
+    }
+
+    // ASR.exe has no window of its own: it updates itself quietly, installs the game on the first run,
+    // then runs the game with co-op on our server and game updates from our GitHub.
+    public static class Starter {
+        public static string NativeGame(string root) {
             string preference = Path.Combine(root, "desktop-game.txt");
             if (File.Exists(preference)) {
                 string selected = File.ReadAllText(preference).Trim();
-                if (File.Exists(selected) && Path.GetFileName(selected).Equals("AzerothSurvivors.exe", StringComparison.OrdinalIgnoreCase)) return selected;
+                if (File.Exists(selected) && Path.GetFileName(selected).Equals(GameInstall.ExeName, StringComparison.OrdinalIgnoreCase)) return selected;
             }
-            foreach (string relative in new[] { "game/native/AzerothSurvivors.exe", "game/AzerothSurvivors.exe" }) {
+            foreach (string relative in new[] { "game/native/" + GameInstall.ExeName, "game/" + GameInstall.ExeName }) {
                 string path = Path.Combine(root, relative); if (File.Exists(path)) return path;
             }
             return null;
         }
-        void Note(string message) { if (InvokeRequired) { BeginInvoke(new Action<string>(Note), message); return; } log.AppendText(message + Environment.NewLine); }
-        void Status(string message) { if (InvokeRequired) { BeginInvoke(new Action<string>(Status), message); return; } state.Text = message; Note(message); }
-        void Progress(long done, long total) {
-            if (InvokeRequired) { BeginInvoke(new Action<long,long>(Progress), done, total); return; }
-            progress.Style = total > 0 ? ProgressBarStyle.Continuous : ProgressBarStyle.Marquee;
-            if (total > 0) progress.Value = (int)Math.Min(100, done * 100 / total);
+        public static int Run(string root, bool checkUpdates) {
+            if (checkUpdates && SelfUpdate(root)) return 0;
+            if (NativeGame(root) == null && !Install(root)) return 1;
+            return NativeTunnel.Run(root, NativeGame(root));
         }
-        void Busy(bool value) { busy = value; play.Enabled = check.Enabled = !value; if (!value) { progress.Style = ProgressBarStyle.Continuous; progress.Value = 0; } }
-        async Task Check() {
-            if (busy) return;
-            if (game != null && !game.HasExited) { Status("Close your game or co-op session before updating."); return; }
-            Busy(true); Status("Checking for ASR updates...");
+        static void Log(string root, string message) {
+            try { File.AppendAllText(Path.Combine(root, "asr.log"), DateTime.UtcNow.ToString("o") + " " + message + Environment.NewLine); } catch (IOException) { }
+        }
+        static string Quote(string value) { return "\"" + value + "\""; }
+        // A newer signed ASR.exe is applied by a helper copy, which then starts it with --no-auto-check.
+        static bool SelfUpdate(string root) {
             try {
-                Release release = await Task.Run(() => ASR.Update.Stage(root, Status, Progress));
-                if (release == null) { Status("You're up to date."); return; }
+                Release release = Update.Stage(root, message => {}, null);
+                if (release == null) return false;
                 string stage = File.ReadAllText(Path.Combine(root, "pending-update.txt"));
                 string helper = Path.Combine(stage, "update-helper.exe");
                 File.Copy(Assembly.GetExecutingAssembly().Location, helper, true);
                 Process.Start(new ProcessStartInfo(helper, "--apply-update " + Process.GetCurrentProcess().Id + " " + Quote(root) + " " + Quote(stage)) { UseShellExecute = false });
-                busy = false; Close();
-            } catch (Exception error) { Status("Update unavailable: " + error.Message); Note("You can retry. Installed files have not been replaced."); }
-            finally { if (!IsDisposed) Busy(false); }
+                Log(root, "Updating ASR to " + release.version);
+                return true;
+            } catch (Exception error) { Log(root, "Update check failed, starting the installed version: " + error.Message); return false; }
         }
-        static string Quote(string value) { return "\"" + value + "\""; }
-        async Task RunGame() {
-            if (busy) return;
-            if (game != null && !game.HasExited) { Status("Your game or co-op session is already running."); return; }
-            Busy(true);
-            try {
-                if (NativeGame() != null) { StartNative(); return; }
-                if (!Installed()) {
-                    Status("Downloading the co-op installer...");
-                    await Task.Run(() => {
-                        byte[] installer = ASR.Update.Download(BuildInfo.InstallerUrl, 2 * 1024 * 1024, Progress, false);
-                        if (ASR.Update.Hash(installer) != BuildInfo.InstallerSha) throw new InvalidDataException("Installer checksum did not match.");
-                        string path = Path.Combine(root, "coop-installer.exe"); File.WriteAllBytes(path, installer);
-                        Status("Installing the game. The first download can take several minutes...");
-                        ProcessStartInfo info = new ProcessStartInfo(path, "--dir " + Quote(Path.Combine(root, "game")) + " --no-shortcuts --no-open --no-pause") {
-                            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-                        using (Process process = new Process { StartInfo = info }) {
-                            process.OutputDataReceived += (s,e) => { if (e.Data != null) Note(e.Data); };
-                            process.ErrorDataReceived += (s,e) => { if (e.Data != null) Note(e.Data); };
-                            process.Start(); process.BeginOutputReadLine(); process.BeginErrorReadLine(); process.WaitForExit();
-                            if (process.ExitCode != 0 || !Installed()) throw new IOException("Game installation failed. Retry to resume the download.");
-                        }
-                    });
-                }
-                StartNative();
-            } catch (Exception error) { Status(error.Message); }
-            finally { Busy(false); }
-        }
-        void StartNative() {
-            string executable = NativeGame();
-            if (executable == null) throw new IOException("The game is not installed. Press Install game.");
-            foreach (Process running in Process.GetProcessesByName("AzerothSurvivors")) {
-                try {
-                    if (String.Equals(running.MainModule.FileName, executable, StringComparison.OrdinalIgnoreCase)) {
-                        game = running; Status("Your Windows game is already running. Switch to its window to play."); return;
-                    }
-                } catch (System.ComponentModel.Win32Exception) { }
-                catch (InvalidOperationException) { }
+        static bool Install(string root) {
+            Exception failure = null; bool finished = false;
+            using (InstallWindow window = new InstallWindow()) {
+                window.Shown += async (s, e) => {
+                    try { await Task.Run(() => GameInstall.Run(Path.Combine(root, "game"), window.Status, window.Progress)); finished = true; }
+                    catch (Exception error) { failure = error; }
+                    window.Close();
+                };
+                Application.Run(window);
             }
-            ProcessStartInfo start = new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,
-                "--native-session " + Quote(root) + " " + Quote(executable)) { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
-            game = Process.Start(start); Status("Game opened. Its co-op menu connects to the ASR server."); play.Text = "Play";
+            if (failure != null)
+                MessageBox.Show(failure.Message + "\n\nStart ASR again to continue; finished files are kept.", "ASR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return finished && NativeGame(root) != null;
         }
-        public void SavePreview(string path) { using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0,0,Width,Height)); image.Save(path); } }
     }
 
     static class Program {
@@ -490,8 +501,8 @@ namespace ASR {
                     return 0;
                 }
                 if (args.Length == 2 && args[0] == "--render-preview") {
-                    using (Launcher form = new Launcher(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), false)) {
-                        form.Show(); Application.DoEvents(); form.SavePreview(args[1]); form.Close(); return 0;
+                    using (InstallWindow form = new InstallWindow()) {
+                        form.Show(); form.Progress(420000000, 1400000000); Application.DoEvents(); form.SavePreview(args[1]); form.Close(); return 0;
                     }
                 }
                 string data = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -519,10 +530,9 @@ namespace ASR {
                 }
                 using (Mutex mutex = new Mutex(false, "Local\\ASR-" + Update.Hash(Encoding.UTF8.GetBytes(root)).Substring(0,16))) {
                     if (!mutex.WaitOne(0)) return 0;
-                    try { Application.Run(new Launcher(root, !args.Contains("--no-auto-check"))); }
+                    try { return Starter.Run(root, !args.Contains("--no-auto-check")); }
                     finally { mutex.ReleaseMutex(); }
                 }
-                return 0;
             } catch (Exception error) {
                 if (args.Length > 0 && (args[0] == "--verify-release" || args[0] == "--test-update")) {
                     Console.Error.WriteLine(error.Message); return 1;

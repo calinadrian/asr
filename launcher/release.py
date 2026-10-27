@@ -23,11 +23,6 @@ UPDATES = STATE / 'updates'
 GITHUB_REPO = 'calinadrian/asr'
 # Launchers up to 0.1.6 accept only this name for the launcher inside a release; newer ones install it as ASR.exe.
 ARCHIVE_EXE = 'WorldOfSurvive.exe'
-# Install game runs this exact reviewed co-op installer; the launcher refuses any file with another hash.
-# Review a new upstream release before changing the pin.
-INSTALLER_URL = ('https://github.com/bymarvin/azeroth-survivors-together/releases/download/v0.0.30/'
-                 'Azeroth-Survivors-Together-Installer.exe')
-INSTALLER_SHA = 'ec9c410f907090f2d1c265faf182c109047f7b3226396153d5af35fee9b17b72'
 
 
 def atomic(path, data):
@@ -70,13 +65,11 @@ def publish(version, sequence, output=None, stage_only=True):
             f'[assembly: System.Reflection.AssemblyFileVersion("{version}.0")]\n'
             '[assembly: System.Reflection.AssemblyTitle("ASR")]\n'
             'namespace ASR { internal static class BuildInfo {\n'
-            f'public const string Version = "{version}"; public const long Sequence = {sequence}L;\n'
-            f'public const string InstallerUrl = "{INSTALLER_URL}";\n'
-            f'public const string InstallerSha = "{INSTALLER_SHA}";\n' + '} }\n')
+            f'public const string Version = "{version}"; public const long Sequence = {sequence}L;\n' + '} }\n')
         exe = build / 'ASR.exe'
         compiler = Path(os.environ.get('WINDIR', r'C:\Windows')) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
         subprocess.run([str(compiler), '/nologo', '/target:winexe', '/optimize+', '/platform:anycpu',
-            '/out:' + str(exe), '/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll',
+            '/out:' + str(exe), '/win32icon:' + str(ROOT / 'launcher/asr.ico'),'/reference:System.Windows.Forms.dll', '/reference:System.Drawing.dll',
             '/reference:System.Web.Extensions.dll', '/reference:System.IO.Compression.dll',
             '/reference:System.IO.Compression.FileSystem.dll',
             '/resource:' + str(build / 'release-key.xml') + ',release-key.xml',

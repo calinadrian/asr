@@ -1,24 +1,32 @@
-# Windows launcher and updates
+# ASR.exe and updates
 
-After publishing, distribute `downloads/ASR.exe` (also attached to every GitHub release). A build awaiting publication is in `downloads/launcher-candidate/ASR.exe`. It installs its own launcher files under `%LOCALAPPDATA%\ASR` without administrator rights (installations made before the rename keep `%LOCALAPPDATA%\WorldOfSurvive`), checks our update channel, and offers Install game / Play. The co-op game is installed by its author's pinned installer into that personal folder's `game` directory. No downloaded game files are bundled into our executable or committed here.
+`ASR.exe` is the only program players run, and it has no window of its own. On every start it:
 
-Our update channel is GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): the launcher reads `releases/latest/download/latest-envelope.json`, then downloads `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 still read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, so every release is also published there; that is how they move to GitHub. Players do not need to configure anything. The launcher embeds our server certificate and release-verification public key; every update is checked against that key whichever host served it. This authenticates our updates; it is separate from Windows Authenticode code signing.
+1. checks GitHub for a newer signed ASR.exe and, if there is one, installs it quietly and restarts;
+2. on the first run only, downloads the game into its folder's `game` directory with a small progress window (`base.json`, `patches.json` and `latest.json` from the `game` release, each file checked against its SHA-256, the executable last);
+3. starts the game with co-op on our server and game updates from our GitHub, and stays in the background until the game exits.
 
-`ASR.exe` is the only program players run. Install game puts the game in the launcher folder's `game` directory; Play starts it with its built-in Co-op menu connected to our service. Installations that chose an existing game with launchers up to 0.1.7 keep using it through `desktop-game.txt`. The native service supports games 0.120.1 and 0.120.4 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its original picker still offers five, but the server refuses a fifth member.
+A downloaded ASR.exe installs itself under `%LOCALAPPDATA%\ASR` without administrator rights and forwards to that copy (installations made before the rename keep `%LOCALAPPDATA%\WorldOfSurvive`). Installations that chose an existing game with launchers up to 0.1.7 keep using it through `desktop-game.txt`. Problems are written to `asr.log` and `native-network.log` in that folder. A build awaiting publication is in `downloads/launcher-candidate/ASR.exe`.
+
+ASR.exe updates come from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): it reads `releases/latest/download/latest-envelope.json`, then downloads `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 still read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. ASR.exe embeds our server certificate and release-verification public key; every update is checked against that key whichever host served it. This authenticates our updates; it is separate from Windows Authenticode code signing.
+
+The server supports games 0.120.1, 0.120.4 and 0.120.5 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
 
 ## Game updates
 
-The game updates its own executable from our pre-release `game` on GitHub: the launcher starts it with `WOW_ROGUE_UPDATE_URL=https://github.com/calinadrian/asr/releases/download/game/latest.json` and `WOW_ROGUE_UPDATE_AUTO=1`, so at start it downloads a newer listed version, replaces itself and restarts without asking. Its manifest lists the version, notes, size, SHA-256 and gzip parts named relative to it; the game checks the size and hash but no signature, so anyone who controls the GitHub account controls what players run. Publish a tested executable with:
+The game updates itself, inside the game, from our pre-release `game` on GitHub: ASR.exe starts it with `WOW_ROGUE_UPDATE_URL` (`latest.json`, the executable) and `WOW_ROGUE_DATA_URL` (`patches.json`, data files) pointing there and `WOW_ROGUE_UPDATE_AUTO=1`, so at start it downloads a newer listed version, replaces itself and restarts without asking. Manifests list each file's size, SHA-256 and gzip parts named relative to the manifest; the game checks the size and hash but no signature, so anyone who controls the GitHub account controls what players run. `base.json` holds `patch.MPQ`, which only a fresh install needs. Publish with:
 
 ```powershell
-asr publish-game path\to\AzerothSurvivors.exe 0.120.4 "What changed"
+launcher\set_game_icon.ps1 -Exe path\to\AzerothSurvivors.exe
+.\asr publish-game path\to\AzerothSurvivors.exe 0.120.5 "What changed"
+.\asr publish-data path\to\Data
 ```
 
-The version must be higher than the players' current one to reach them, and the server must already accept it (`SUPPORTED_VERSIONS` in `server/native_lobby.py`). The game's data files still update from its author's data manifest.
+The version must be the one the executable itself reports (`publish-game` refuses otherwise, since the game would download it again on every start), higher than the players' current one, and accepted by the server (`SUPPORTED_VERSIONS` in `server/native_lobby.py`, then restart the server) before you publish.
 
-The launcher starts a separate helper for the lifetime of the desktop game. It passes the game's `WOW_ROGUE_COOP_URL` override to a random, token-protected loopback WebSocket endpoint and forwards that connection through certificate-pinned TLS to `/coop/lobby/` on TCP 47770. The helper survives closing the launcher window and the game's restart after an update, and ends when its game exits. There is no fallback to the original game's public lobby. No normal save file is touched by this integration. `native-network.log` in the launcher folder records connection errors without room tokens or gameplay payloads.
+ASR.exe keeps a helper running for the lifetime of the game. It passes the game's `WOW_ROGUE_COOP_URL` override to a random, token-protected loopback WebSocket endpoint and forwards that connection through certificate-pinned TLS to `/coop/lobby/` on TCP 47770. It survives the game's restart after an update and ends when the game exits. There is no fallback to the original game's public lobby (`WOW_ROGUE_PRESENCE=0`). No save file is touched.
 
-## Publish a client update
+## Publish an ASR.exe update
 
 Edit `launcher/ASR.cs` and/or our files under `launcher/client/`, test locally, raise both `version` and `sequence` in `launcher/version.json`, and push to `main`:
 

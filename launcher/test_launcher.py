@@ -96,11 +96,7 @@ class Harness {
     return 0;
    }
    if(args[0]=="desktop") {
-    using(var form=new Launcher(root,false)) {
-     var method=typeof(Launcher).GetMethod("RunGame",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
-     ((System.Threading.Tasks.Task)method.Invoke(form,null)).GetAwaiter().GetResult();
-    }
-    return 0;
+    return Starter.Run(root,false);
    }
    if(args[0]=="cleanup") {
     foreach(var p in System.Diagnostics.Process.GetProcessesByName("ASR")) {
