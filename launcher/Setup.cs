@@ -187,7 +187,9 @@ namespace ASR.Setup {
         readonly TextBox folder; readonly CheckBox desktop, startNow; readonly Label space, state, doneText; readonly ProgressBar bar;
         readonly Button install;
         public bool Installed { get; private set; }
-        public string Folder { get { return folder.Text.Trim(); } }
+        // Read once installed: the text box is gone after the window closes.
+        public string InstalledTo { get; private set; }
+        string Folder { get { return folder.Text.Trim(); } }
         public bool StartNow { get { return startNow.Checked; } }
 
         public Wizard(string suggested, bool automatic) {
@@ -274,7 +276,7 @@ namespace ASR.Setup {
                     Game.Configure();
                     Registration.Register(target, Game.Shortcuts(Path.Combine(target, Game.ExeName), wantDesktop));
                 });
-                Installed = true; ControlBox = true; Show(done); AcceptButton = null;
+                InstalledTo = target; Installed = true; ControlBox = true; Show(done); AcceptButton = null;
                 if (!startNow.Checked && Environment.GetCommandLineArgs().Contains("--yes")) Close();
             } catch (Exception error) {
                 ControlBox = true;
@@ -337,7 +339,7 @@ namespace ASR.Setup {
                 }
                 using (Wizard wizard = new Wizard(Option(args, "--dir") ?? Registration.InstalledFolder() ?? defaultFolder, args.Contains("--yes"))) {
                     Application.Run(wizard);
-                    if (wizard.Installed && wizard.StartNow) Game.Start(Path.Combine(wizard.Folder, Game.ExeName));
+                    if (wizard.Installed && wizard.StartNow) Game.Start(Path.Combine(wizard.InstalledTo, Game.ExeName));
                     return wizard.Installed ? 0 : 1;
                 }
             } catch (Exception error) {
