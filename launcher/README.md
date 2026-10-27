@@ -17,11 +17,14 @@ The game updates itself from the `game` release: at start it reads `latest.json`
 
 ```powershell
 launcher\set_game_icon.ps1 -Exe path\to\AzerothSurvivors.exe
-.\asr publish-game path\to\AzerothSurvivors.exe 0.120.6 "What changed"
+.\asr publish-game path\to\AzerothSurvivors.exe 0.120.8 "What changed"
 .\asr publish-data path\to\Data
 ```
 
 `publish-game` stamps the executable it uploads (`launcher/stamp_game.py`):
+
+It also applies ASR branding (`launcher/brand_game.py`): the exact window title, in-game name in all 12 languages, runtime window/taskbar icon, and Windows executable icon. Branding checks the supported native layout and refuses unknown builds. Reapplying it is safe.
+
 
 - the version you give, which the game's updater and the co-op lobby read;
 - the first 8 characters of this repository's current commit, shown next to it in the game's corner label, e.g. `v0.120.6 (54467733)`; it refuses until that commit is pushed;
@@ -33,7 +36,7 @@ The version must keep the length of the current one (`0.120.6`, not `0.121.10`),
 
 Players who installed with `ASR.exe` 0.1.8 or earlier have a launcher that starts the game with the same settings and keeps a helper running that forwards co-op through the certificate it pins on TCP 47770. It updates itself from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): `releases/latest/download/latest-envelope.json`, then `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. Each release is checked against the release-verification public key the launcher embeds.
 
-The server supports games 0.120.1, 0.120.4, 0.120.5 and 0.120.6 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
+The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7 and 0.120.8 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
 
 ## Publish an old-launcher update
 
@@ -44,7 +47,7 @@ Edit `launcher/ASR.cs` and/or our files under `launcher/client/`, test locally, 
 .\asr test
 ```
 
-The `Publish launcher` workflow (`.github/workflows/publish.yml`, `launcher/ci_publish.py`) builds on a Windows runner, signs with the `RELEASE_SIGNING_KEY` secret, pins the `SERVER_CERT` secret, and creates the GitHub release. Its build is not the one `asr test` tested: the TLS test needs the server's private key, which stays on this PC, so test the same source before pushing. The server mirrors the release for launchers up to 0.1.4 within ten minutes.
+The `Publish launcher` workflow (`.github/workflows/publish.yml`, `launcher/ci_publish.py`) runs only when started manually from GitHub Actions; pushing commits does not start it. Leave `dry_run` enabled to check the build, or disable it to publish a staged and tested version. It builds on a Windows runner, signs with the `RELEASE_SIGNING_KEY` secret, pins the `SERVER_CERT` secret, and creates the GitHub release. Its build is not the one `asr test` tested: the TLS test needs the server's private key, which stays on this PC, so test the same source before pushing. The server mirrors the release for launchers up to 0.1.4 within ten minutes.
 
 To publish from this PC instead (for example if Actions are down), run `.\asr publish <version> <sequence>` after staging and testing; it promotes that exact tested candidate.
 
@@ -61,3 +64,19 @@ The current launcher pins the current TLS certificate. Certificate renewal requi
 On the server PC, start the executable once with `--local-server` to save the operator-only LAN connection setting and avoid router hairpin NAT for game connections. Do not use this flag on remote players' PCs. The update channel still uses the public hostname; testing from the host without hairpin support uses the isolated test runner instead.
 
 For local verification, `launcher/test_launcher.py` exercises the compiled updater against a separate TLS fixture server and isolated installation folders. It does not publish test releases to the live channel. The native window can render itself for visual verification with `ASR.exe --render-preview <PNG-path>`.
+
+## Native zone cards
+
+`publish-game` also applies `launcher/zone_cards.py` and its reviewed `zone-cards-profile.json`. The supported desktop layout gets larger collapsed rows and unlock text, more padding and separation, quieter artwork behind readable text, and larger boss schedule labels. Selection and unlock rules are unchanged. New constants live in a separate read-only PE section; shared UI constants are never modified. Every code edit checks its original instruction and refuses unknown layouts. Reapplying the patch verifies the existing section and does not add another one.
+
+## Zone scenery photos
+
+The current zone-card patch uses distinct scenery screenshots for all twelve zones, taller photo cards, larger headings and requirements, and a dark backing for readable text. See `launcher/zone-photos/README.md` and `sources.json` for the image sources. Normal loading-screen assets and zone unlock rules are unchanged.
+
+`publish-data` builds and includes `patch-Z.MPQ` from the prepared native textures. Run it before `publish-game`, which checks that the matching photos are present in the live data manifest before uploading a game. Locally, install the archive in Data alongside the patched game. The patch safely upgrades both original supported binaries and the previous ASR zone-card refinement.
+
+The decorative zone-tier dots are omitted. The scroll viewport has 20 px of top and bottom padding so the first card and its hover outline remain inside the visible region; selection, unlock rules and hover feedback are retained.
+
+Locked-zone requirement lines render in red, independently of the normal zone heading colour. The actual unlock checks are unchanged.
+
+To publish only the zone photos while retaining all other data entries, run `.\asr publish-zone-photos` before publishing the game. The existing base-data manifest and earlier game parts stay available to players already downloading.

@@ -19,7 +19,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 GITHUB_REPO = 'calinadrian/asr'
-# One pre-release keeps the game files out of releases/latest, where launchers find their own updates.
+# Keep this tag stable: installed games read their update manifests from it.
 GAME_TAG = 'game'
 PART_SIZE = 20 * 1024 * 1024
 BASE_DATA = 'patch.MPQ'
@@ -71,6 +71,18 @@ def upload(tag, folder, manifests):
     subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber'] + [str(folder / m) for m in manifests], check=True)
 
 
+def require_zone_photos(tag, folder):
+    """Never ship a game whose zone-photo assets are missing from the data feed."""
+    from photo_archive import build_photos
+    expected = hashlib.sha256(build_photos(ROOT / 'launcher/zone-photos')).hexdigest()
+    subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
+                    '--pattern', 'patches.json', '--dir', str(folder), '--clobber'], check=True)
+    patches = json.loads((folder / 'patches.json').read_text(encoding='utf-8-sig')).get('patches', [])
+    if not any(p.get('name') == 'patch-Z.MPQ' and p.get('sha256') == expected for p in patches):
+        raise ValueError('Publish data first with asr publish-data DATA-FOLDER: the live data feed needs the matching zone-photo archive')
+    (folder / 'patches.json').unlink()
+
+
 def publish(exe, version, notes, tag=GAME_TAG):
     import stamp_game
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
@@ -80,9 +92,14 @@ def publish(exe, version, notes, tag=GAME_TAG):
         raise ValueError('Push your commits first: the game shows the current commit in its version label')
     with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
+        require_zone_photos(tag, folder)
         # The game reports this exact version, so its updater does not offer the same build again.
         stamped = folder / 'AzerothSurvivors.exe'
         stamp_game.stamp(exe, stamped, version)
+        # Windows shell resources are separate from the game's embedded runtime icon.
+        subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                        str(ROOT / 'launcher/set_game_icon.ps1'), '-Exe', str(stamped),
+                        '-Ico', str(ROOT / 'launcher/asr.ico')], check=True)
         entry = pack(stamped, f'game-{version}', folder)
         stamped.unlink()
         (folder / 'latest.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
@@ -92,12 +109,37 @@ def publish(exe, version, notes, tag=GAME_TAG):
     print(f'Published game {version} to https://github.com/{GITHUB_REPO}/releases/download/{tag}/latest.json')
 
 
+def publish_zone_photos(tag=GAME_TAG):
+    """Add the current zone photos without republishing unchanged game data."""
+    from photo_archive import build_photos
+    with tempfile.TemporaryDirectory(prefix='asr-zone-photos-') as scratch:
+        folder = Path(scratch)
+        subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
+                        '--pattern', 'patches.json', '--dir', str(folder)], check=True)
+        path = folder / 'patches.json'
+        manifest = json.loads(path.read_text(encoding='utf-8-sig'))
+        if not isinstance(manifest.get('patches'), list) or not manifest['patches']:
+            raise ValueError('Publish the base game data before adding zone photos')
+        photos = folder / 'patch-Z.MPQ'
+        photos.write_bytes(build_photos(ROOT / 'launcher/zone-photos'))
+        digest = hashlib.sha256(photos.read_bytes()).hexdigest()
+        entry = dict(name='patch-Z.MPQ', **pack(photos, f'data-patch-Z-{digest[:16]}', folder))
+        manifest['patches'] = [p for p in manifest['patches'] if p.get('name', '').lower() != 'patch-z.mpq'] + [entry]
+        path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
+        upload(tag, folder, ['patches.json'])
+    print(f'Published zone photos; existing game data retained on {tag}')
+
+
 def publish_data(data, tag=GAME_TAG):
     data = Path(data)
     with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
         patches, base = [], []
-        for source in sorted(data.glob('*.MPQ'), key=lambda p: p.name.lower()):
+        from photo_archive import build_photos
+        photos = folder / 'patch-Z.MPQ'
+        photos.write_bytes(build_photos(ROOT / 'launcher/zone-photos'))
+        sources = [p for p in data.glob('*.MPQ') if p.name.lower() != 'patch-z.mpq'] + [photos]
+        for source in sorted(sources, key=lambda p: p.name.lower()):
             with source.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()[:16]
             # Content-addressed part names: a changed file never overwrites parts a download is using.
@@ -116,12 +158,15 @@ if __name__ == '__main__':
     parser.add_argument('--exe')
     parser.add_argument('--version')
     parser.add_argument('--notes', default='')
+    parser.add_argument('--zone-photos', action='store_true', help='publish only the zone-photo data update')
     parser.add_argument('--data', help='a game Data folder to publish instead of an executable')
     parser.add_argument('--tag', default=GAME_TAG)
     parser.add_argument('--describe', action='store_true', help='only retitle the release and rewrite its notes for --version')
     args = parser.parse_args()
     if args.describe:
         describe(args.version, args.notes, args.tag)
+    elif args.zone_photos:
+        publish_zone_photos(args.tag)
     elif args.data:
         publish_data(args.data, args.tag)
     elif args.exe and args.version:

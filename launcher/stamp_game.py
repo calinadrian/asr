@@ -38,7 +38,10 @@ def allow_any_name(data):
 
 
 def stamp(source, output, version, build=None):
-    data = allow_any_name(Path(source).read_bytes())
+    import brand_game
+    data = brand_game.apply(allow_any_name(Path(source).read_bytes()), (ROOT / 'launcher/asr.ico').read_bytes())
+    import zone_cards
+    data = zone_cards.apply(data)
     old_code, old_version = current(data)
     build = build or subprocess.run(['git', 'rev-parse', '--short=8', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     if len(version) != len(old_version) or not re.fullmatch(r'\d+\.\d+\.\d+', version):

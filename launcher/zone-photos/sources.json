@@ -1,0 +1,86 @@
+[
+  {
+    "zone": "ab",
+    "texture": "loadscreenarathibasin",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/940447-arathibecken.jpg",
+    "source": "https://www.wowhead.com/classic/de/zone=3358/arathibecken",
+    "file": "loadscreenarathibasin.blp"
+  },
+  {
+    "zone": "aq",
+    "texture": "loadscreenahnqiraj40man",
+    "image": "https://wow.zamimg.com/uploads/blog/images/49534-everything-coming-with-ahnqiraj-in-phase-5-classic-anniversary.jpg",
+    "source": "https://www.wowhead.com/mop-classic/es/news/everything-coming-with-ahnqiraj-in-phase-5-classic-anniversary-377707",
+    "file": "loadscreenahnqiraj40man.blp"
+  },
+  {
+    "zone": "arena",
+    "texture": "loadscreenzulgurub",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/294598-gran-maestro-de-la-arena-gurubashi.jpg",
+    "source": "https://echoesofazeroth.com/sod/season-of-discovery-overview-phase-2/",
+    "file": "loadscreenzulgurub.blp"
+  },
+  {
+    "zone": "av",
+    "texture": "loadscreenpvpbattleground",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/132305-valle-de-alterac.jpg",
+    "source": "https://www.wowhead.com/wotlk/es/zone=2597/valle-de-alterac",
+    "file": "loadscreenpvpbattleground.blp"
+  },
+  {
+    "zone": "brm",
+    "texture": "loadscreenblackrockspire",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/432323-der-schwarzfels-the-new-platform-inside-blackrock-mountain.jpg",
+    "source": "https://www.wowhead.com/de/zone=25/der-schwarzfels",
+    "file": "loadscreenblackrockspire.blp"
+  },
+  {
+    "zone": "duskwood",
+    "texture": "loadscreenshadowfangkeep",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/1170905-duskwood.jpg",
+    "source": "https://www.wowhead.com/cata/zone=10/duskwood",
+    "file": "loadscreenshadowfangkeep.blp"
+  },
+  {
+    "zone": "elwynn",
+    "texture": "loadscreeneasternkingdom",
+    "image": "https://gamer-guides.com/wp-content/uploads/2025/09/Elywnn-Forest-Scenery.png",
+    "source": "https://gamer-guides.com/wow-hardcore/elwynn-forest/",
+    "file": "loadscreeneasternkingdom.blp"
+  },
+  {
+    "zone": "feralas",
+    "texture": "loadscreendiremaul",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/152427-erforscht-feralas.jpg",
+    "source": "https://www.wowhead.com/wotlk/de/achievement=849/erforscht-feralas",
+    "file": "loadscreendiremaul.blp"
+  },
+  {
+    "zone": "naxx",
+    "texture": "loadscreennaxxramas",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/430304.jpg",
+    "source": "https://wow.zamimg.com/uploads/screenshots/normal/430304.jpg",
+    "file": "loadscreennaxxramas.blp"
+  },
+  {
+    "zone": "sm",
+    "texture": "loadscreenmonastery",
+    "image": "https://wow.zamimg.com/uploads/blog/images/16916-classic-wow-goldmaking-guide-farming-scarlet-monastery-by-quissy.jpg",
+    "source": "https://www.wowhead.com/classic/news/classic-wow-goldmaking-guide-farming-scarlet-monastery-by-quissy-294424",
+    "file": "loadscreenmonastery.blp"
+  },
+  {
+    "zone": "ungoro",
+    "texture": "loadscreenkalimdor",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/1174358-cratera-ungoro.jpg",
+    "source": "https://www.wowhead.com/mop-classic/pt/zone=490/cratera-ungoro",
+    "file": "loadscreenkalimdor.blp"
+  },
+  {
+    "zone": "wsg",
+    "texture": "loadscreenwarsonggulch",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/54495-warsong-gulch.jpg",
+    "source": "https://www.wowhead.com/classic/zone=3277/warsong-gulch",
+    "file": "loadscreenwarsonggulch.blp"
+  }
+]

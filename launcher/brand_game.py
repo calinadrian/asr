@@ -1,0 +1,109 @@
+"""Apply ASR's title and runtime icon to the supported native desktop layout.
+
+All edits retain their size and verify their original bytes. Unknown layouts fail
+before any output is written. Authorship, save formats and protocol names stay intact.
+"""
+import argparse
+import hashlib
+import struct
+import zlib
+from pathlib import Path
+
+TITLE = b'Azeroth Survivors'
+BASE = 0x140000000
+
+
+def apply(data, ico):
+    data = bytearray(data)
+    pe = struct.unpack_from('<I', data, 0x3c)[0]
+    sections = []
+    for index in range(struct.unpack_from('<H', data, pe + 6)[0]):
+        pos = pe + 24 + struct.unpack_from('<H', data, pe + 20)[0] + 40 * index
+        _, va, size, raw = struct.unpack_from('<IIII', data, pos + 8)
+        sections.append((va, raw, size))
+
+    def offset(address):
+        for va, raw, size in sections:
+            if va <= address - BASE < va + size:
+                return raw + address - BASE - va
+        raise ValueError('Unsupported native game address')
+
+    def patch(address, before, after):
+        if len(before) != len(after):
+            raise ValueError('Brand patches must preserve executable layout')
+        pos = offset(address)
+        existing = data[pos:pos + len(before)]
+        if existing not in (before, after):
+            raise ValueError(f'Unsupported game layout at {address:#x}')
+        data[pos:pos + len(before)] = after
+
+    # Fallback title, presence text and both native window title constructors.
+    for address in (0x146184028, 0x146186d90, 0x1461b7868):
+        patch(address, TITLE, b'ASR' + b' ' * 14)
+    # Keep the allocation capacity (17) but expose exactly three characters.
+    for address, before in (
+        (0x14003fc2d, '48c7461811000000'),
+        (0x140070efe, '48c7858001000011000000'),
+        (0x1402451a7, '48c7476811000000'),
+        (0x14024530c, '49c7456811000000'),
+    ):
+        original = bytes.fromhex(before)
+        patch(address, original, original[:-4] + struct.pack('<I', 3))
+
+    # The window system enforces its title each frame. Compare only the three
+    # actual bytes, without reading beyond a three-byte string allocation.
+    for address, before in (
+        (0x14024510f, '49837c056811'),
+        (0x140245273, '48837c026811'),
+    ):
+        original = bytes.fromhex(before)
+        patch(address, original, original[:-1] + b'\x03')
+    comparison = bytes.fromhex('f30f6f00660f74c60fb64010660f6ec8660f74cf660fdbc8660fd7c13dffff0000')
+    for start, mismatch in ((0x14024511b, 0x140245142), (0x14024527f, 0x1402452a6)):
+        # cmp word [rax], 'AS'; jne mismatch; cmp byte [rax+2], 'R'
+        # The original following JE still branches back to the next window.
+        code = bytes.fromhex('6681384153')
+        code += b'\x0f\x85' + struct.pack('<i', mismatch - (start + 11))
+        code += bytes.fromhex('80780252')
+        code += b'\x90' * (len(comparison) - len(code))
+        patch(start, comparison, code)
+
+    # Translations are fixed-size embedded JSON. Put padding outside the value,
+    # so every language renders and centers exactly "ASR".
+    old = b'"game.title": "Azeroth Survivors"'
+    new = b'"game.title": "ASR"' + b' ' * 14
+    count = data.count(old) + data.count(new)
+    if count != 12:
+        raise ValueError(f'Expected 12 game-title translations, found {count}')
+    data = data.replace(old, new)
+
+    # Winit loads this PNG directly, independently of Windows' executable icon.
+    size, pos = struct.unpack_from('<II', ico, 14)
+    png = ico[pos:pos + size]
+    if png[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack_from('>II', png, 16) != (256, 256):
+        raise ValueError('Expected a 256px PNG as the first ASR icon entry')
+    location, length = 0x615694e, 142890
+    if data[location:location + 8] != png[:8]:
+        raise ValueError('Unsupported runtime icon location')
+    # A valid ancillary chunk fills the reserved slot without shifting pointers.
+    payload = b'ASR\0' + b' ' * (length - len(png) - 16)
+    chunk = b'tEXt' + payload
+    padded = png[:-12] + struct.pack('>I', len(payload)) + chunk + struct.pack('>I', zlib.crc32(chunk)) + png[-12:]
+    if len(padded) != length:
+        raise ValueError('ASR icon does not fit the native icon slot')
+    existing = bytes(data[location:location + length])
+    if existing != padded and hashlib.sha256(existing).hexdigest() != '93ac97ef17e6e9d04a193846567fe2a0b09869ea2278d08f20a1a02bbf04c855':
+        raise ValueError('Unsupported runtime icon; analyze this game build first')
+    data[location:location + length] = padded
+    return bytes(data)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('exe', type=Path)
+    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--ico', type=Path, default=Path(__file__).with_name('asr.ico'))
+    args = parser.parse_args()
+    result = apply(args.exe.read_bytes(), args.ico.read_bytes())
+    args.out.write_bytes(result)
+    print(f'Branded {args.out}: ASR title, 12 languages, runtime icon')

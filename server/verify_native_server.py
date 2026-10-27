@@ -12,7 +12,7 @@ from native_lobby import Reader, blob, number, string
 
 
 class Client:
-    def __init__(self, host, port, certificate, name=None):
+    def __init__(self, host, port, certificate, name=None, version='0.120.1'):
         # certificate None trusts public authorities, as the game does.
         context = ssl.create_default_context(cafile=str(certificate) if certificate else None)
         self.socket = context.wrap_socket(socket.create_connection((host, port), timeout=5), server_hostname=name or host)
@@ -32,7 +32,7 @@ class Client:
             headers[name.lower()] = value.strip()
         expected = base64.b64encode(hashlib.sha1((key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest()).decode()
         assert headers['sec-websocket-accept'] == expected
-        self.send(bytes.fromhex('010300000007000000302e3132302e310000000001'))
+        self.send(b'\x01' + number(3) + string(version) + string('') + b'\x01')
 
     def send(self, message):
         mask = os.urandom(4)
@@ -57,11 +57,11 @@ class Client:
         self.socket.close()
 
 
-def verify(host, port, certificate, name=None):
+def verify(host, port, certificate, name=None, version='0.120.1'):
     clients = []
     try:
         def connect():
-            client = Client(host, port, certificate, name)
+            client = Client(host, port, certificate, name, version)
             clients.append(client)
             return client
         owner = connect()
@@ -100,5 +100,6 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=47770)
     parser.add_argument('--name', help='TLS name to request, e.g. game.hassian.duckdns.org (default: --host)')
     parser.add_argument('--public', action='store_true', help='trust public certificate authorities, as the game does')
+    parser.add_argument('--version', default='0.120.1', help='game protocol version to verify')
     args = parser.parse_args()
-    verify(args.host, args.port, None if args.public else Path(__file__).resolve().parent / 'state/server-cert.pem', args.name)
+    verify(args.host, args.port, None if args.public else Path(__file__).resolve().parent / 'state/server-cert.pem', args.name, args.version)

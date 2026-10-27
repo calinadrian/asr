@@ -9,6 +9,7 @@ if /i "%~1"=="server" goto server
 if /i "%~1"=="play" goto play
 if /i "%~1"=="setup" goto setup
 if /i "%~1"=="publish-game" if not "%~3"=="" goto publish_game
+if /i "%~1"=="publish-zone-photos" goto publish_zone_photos
 if /i "%~1"=="publish-data" if not "%~2"=="" goto publish_data
 if /i "%~1"=="stage" if not "%~3"=="" goto stage
 if /i "%~1"=="test" goto test
@@ -19,6 +20,7 @@ echo   asr server                    run the co-op server
 echo   asr play                      open the game on this PC with co-op on our server
 echo   asr setup                     build downloads\ASR-Setup.exe, the installer players download
 echo   asr publish-game EXE VERSION ["NOTES"]  send a game executable to every player
+echo   asr publish-zone-photos       update zone photos without republishing other data
 echo   asr publish-data DATA-FOLDER  send the game's data files (*.MPQ) to every player
 echo   launcher\set_game_icon.ps1 -Exe EXE        put the ASR icon on a game executable before publishing it
 echo.
@@ -42,6 +44,9 @@ echo Built downloads\ASR-Setup.exe
 exit /b
 :publish_game
 "%PY%" launcher\game_release.py --exe "%~2" --version "%~3" --notes "%~4"
+exit /b
+:publish_zone_photos
+"%PY%" launcher\game_release.py --zone-photos
 exit /b
 :publish_data
 "%PY%" launcher\game_release.py --data "%~2"

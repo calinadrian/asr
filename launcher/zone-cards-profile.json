@@ -1,0 +1,817 @@
+{
+  "format": 4,
+  "patches": [
+    {
+      "name": "Collapsed zone minimum height: 38 to 96",
+      "rva": 3189714,
+      "before": "f30f10058637eb05",
+      "constant": 32,
+      "disp_offset": 4
+    },
+    {
+      "name": "Separate zone rows: 4 to 12",
+      "rva": 3188584,
+      "before": "f30f1005c812e705",
+      "constant": 48,
+      "disp_offset": 4
+    },
+    {
+      "name": "Roomier zone card padding",
+      "rva": 3189898,
+      "before": "0f2805bf0ee705",
+      "constant": 64,
+      "disp_offset": 3
+    },
+    {
+      "name": "Quiet unselected border",
+      "rva": 3189688,
+      "before": "0f1005613feb05",
+      "constant": 80,
+      "disp_offset": 3
+    },
+    {
+      "name": "Readable locked zone titles and requirements",
+      "rva": 3198088,
+      "before": "0f28054117eb05",
+      "constant": 96,
+      "disp_offset": 3
+    },
+    {
+      "name": "Larger collapsed zone title",
+      "rva": 3198472,
+      "before": "c78424c000000000009841",
+      "after": "c78424c00000000000c041"
+    },
+    {
+      "name": "Larger unlock requirement",
+      "rva": 3199151,
+      "before": "c78424c000000000003041",
+      "after": "c78424c000000000006041"
+    },
+    {
+      "name": "Dim locked art independently of text",
+      "rva": 3191681,
+      "before": "0f28050830eb05",
+      "constant": 112,
+      "disp_offset": 3
+    },
+    {
+      "name": "Reduce selected background visual noise",
+      "rva": 3191748,
+      "before": "0f2805b52feb05",
+      "constant": 128,
+      "disp_offset": 3
+    },
+    {
+      "name": "Solid text backing at card edges",
+      "rva": 3192486,
+      "before": "0f2805f32ceb05",
+      "constant": 144,
+      "disp_offset": 3
+    },
+    {
+      "name": "Solid text backing across card body",
+      "rva": 3192529,
+      "before": "0f28059801e705",
+      "constant": 160,
+      "disp_offset": 3
+    },
+    {
+      "name": "Quiet top artwork and embedded logos",
+      "rva": 3192573,
+      "before": "0f2805ac2ceb05",
+      "constant": 176,
+      "disp_offset": 3
+    },
+    {
+      "name": "Soften selected-card glow",
+      "rva": 3190188,
+      "before": "c785200600003333b33e",
+      "after": "c785200600000000803e"
+    },
+    {
+      "name": "Reduce selected-card shadow spread",
+      "rva": 3190201,
+      "before": "f3440f100dde33eb05",
+      "constant": 192,
+      "disp_offset": 5
+    },
+    {
+      "name": "Selected zone heading",
+      "rva": 3227103,
+      "before": "c785700200000000c841",
+      "after": "c785700200000000f041"
+    },
+    {
+      "name": "Selected zone subtitle",
+      "rva": 3228014,
+      "before": "c7857002000000006041",
+      "after": "c7857002000000007041"
+    },
+    {
+      "name": "Selected zone description",
+      "rva": 3228400,
+      "before": "c7857002000000005041",
+      "after": "c7857002000000006041"
+    },
+    {
+      "name": "Enemy list readability",
+      "rva": 3228839,
+      "before": "c7857002000000004041",
+      "after": "c7857002000000005041"
+    },
+    {
+      "name": "Separate selected-zone text blocks",
+      "rva": 3226609,
+      "before": "f30f1005677ce605",
+      "constant": 208,
+      "disp_offset": 4
+    },
+    {
+      "name": "More room between boss schedule entries",
+      "rva": 3229234,
+      "before": "f30f1005b656e805",
+      "constant": 224,
+      "disp_offset": 4
+    },
+    {
+      "name": "Separate boss schedule from description",
+      "rva": 3229210,
+      "before": "0f2805df56e805",
+      "constant": 240,
+      "disp_offset": 3
+    },
+    {
+      "name": "Readable secondary zone information",
+      "rva": 3228736,
+      "before": "0f100515a3ea05",
+      "constant": 256,
+      "disp_offset": 3
+    },
+    {
+      "name": "Larger boss schedule labels",
+      "rva": 3230527,
+      "before": "c7856802000000003041",
+      "after": "c7856802000000006041"
+    },
+    {
+      "name": "Selected photo crop maximum Y",
+      "rva": 3191622,
+      "before": "f30f103d1630eb05",
+      "constant": 272,
+      "disp_offset": 4
+    },
+    {
+      "name": "Collapsed photo crop maximum Y",
+      "rva": 3191646,
+      "before": "f30f103d0230eb05",
+      "constant": 288,
+      "disp_offset": 4
+    },
+    {
+      "name": "Collapsed photo crop minimum Y",
+      "rva": 3191654,
+      "before": "f3440f100dfd2feb05",
+      "constant": 304,
+      "disp_offset": 5
+    },
+    {
+      "name": "Selected photo crop minimum Y",
+      "rva": 3191712,
+      "before": "f3440f100dc32feb05",
+      "constant": 320,
+      "disp_offset": 5
+    },
+    {
+      "name": "Collapsed photo crop minimum Y",
+      "rva": 3191730,
+      "before": "f3440f100db52feb05",
+      "constant": 336,
+      "disp_offset": 5
+    },
+    {
+      "name": "Zone photos have a separate asset path",
+      "rva": 102348387,
+      "before": "6d70713a2f2f696e746572666163652f676c7565732f6c6f6164696e6773637265656e732f",
+      "after": "6d70713a2f2f696e746572666163652f6173722f7a6f6e652d70686f746f735f5f5f5f5f2f"
+    },
+    {
+      "name": "Remove decorative zone tier dots",
+      "rva": 3175280,
+      "before": "415741564155",
+      "after": "4889c8c39090"
+    },
+    {
+      "name": "Keep hovered cards inside the zone scroll viewport",
+      "rva": 3189138,
+      "before": "0f28053710e705",
+      "constant": 352,
+      "disp_offset": 3
+    },
+    {
+      "name": "Red locked-zone requirement only; preserve heading color",
+      "rva": 3199042,
+      "before": "0f1044245c0f118424fc010000448b44246c448984240c020000",
+      "after_template": "0f1005000000000f118424fc010000c784240c0200000000803f",
+      "constant": 368,
+      "disp_offset": 3,
+      "rip_end": 7
+    }
+  ],
+  "payload": "415352207a6f6e652063617264732076340000000000000000000000000000000000c0420000000000000000000000000000404100000000000000000000000000000000000060410000000000006041000000000ad7a33ee17a943e3d0a573e3d0a573fcdcc4c3f8fc2353f0000803fcdcc4c3fcdcc4c3fcdcc4c3f0000803f0000803f0000803f0000803f0000803f000000000000000000000000f6285c3f0000000000000000000000009a99193f000000000000000000000000cdcc4c3e000040410000000000000000000000000000c04000000000000000000000000000004041000000000000000000000000000000000000000000000000000020410000000085eb513f14ae473f1f852b3f0000804300000000000000000000000000004043000000000000000000000000000080420000000000000000000000000000000000000000000000000000000000008042000000000000000000000000010000000000a041010000000000a041000000000000803fec51b83e0ad7a33e",
+  "previous": [
+    {
+      "format": 3,
+      "patches": [
+        {
+          "name": "Collapsed zone minimum height: 38 to 96",
+          "rva": 3189714,
+          "before": "f30f10058637eb05",
+          "constant": 32,
+          "disp_offset": 4
+        },
+        {
+          "name": "Separate zone rows: 4 to 12",
+          "rva": 3188584,
+          "before": "f30f1005c812e705",
+          "constant": 48,
+          "disp_offset": 4
+        },
+        {
+          "name": "Roomier zone card padding",
+          "rva": 3189898,
+          "before": "0f2805bf0ee705",
+          "constant": 64,
+          "disp_offset": 3
+        },
+        {
+          "name": "Quiet unselected border",
+          "rva": 3189688,
+          "before": "0f1005613feb05",
+          "constant": 80,
+          "disp_offset": 3
+        },
+        {
+          "name": "Readable locked zone titles and requirements",
+          "rva": 3198088,
+          "before": "0f28054117eb05",
+          "constant": 96,
+          "disp_offset": 3
+        },
+        {
+          "name": "Larger collapsed zone title",
+          "rva": 3198472,
+          "before": "c78424c000000000009841",
+          "after": "c78424c00000000000c041"
+        },
+        {
+          "name": "Larger unlock requirement",
+          "rva": 3199151,
+          "before": "c78424c000000000003041",
+          "after": "c78424c000000000006041"
+        },
+        {
+          "name": "Dim locked art independently of text",
+          "rva": 3191681,
+          "before": "0f28050830eb05",
+          "constant": 112,
+          "disp_offset": 3
+        },
+        {
+          "name": "Reduce selected background visual noise",
+          "rva": 3191748,
+          "before": "0f2805b52feb05",
+          "constant": 128,
+          "disp_offset": 3
+        },
+        {
+          "name": "Solid text backing at card edges",
+          "rva": 3192486,
+          "before": "0f2805f32ceb05",
+          "constant": 144,
+          "disp_offset": 3
+        },
+        {
+          "name": "Solid text backing across card body",
+          "rva": 3192529,
+          "before": "0f28059801e705",
+          "constant": 160,
+          "disp_offset": 3
+        },
+        {
+          "name": "Quiet top artwork and embedded logos",
+          "rva": 3192573,
+          "before": "0f2805ac2ceb05",
+          "constant": 176,
+          "disp_offset": 3
+        },
+        {
+          "name": "Soften selected-card glow",
+          "rva": 3190188,
+          "before": "c785200600003333b33e",
+          "after": "c785200600000000803e"
+        },
+        {
+          "name": "Reduce selected-card shadow spread",
+          "rva": 3190201,
+          "before": "f3440f100dde33eb05",
+          "constant": 192,
+          "disp_offset": 5
+        },
+        {
+          "name": "Selected zone heading",
+          "rva": 3227103,
+          "before": "c785700200000000c841",
+          "after": "c785700200000000f041"
+        },
+        {
+          "name": "Selected zone subtitle",
+          "rva": 3228014,
+          "before": "c7857002000000006041",
+          "after": "c7857002000000007041"
+        },
+        {
+          "name": "Selected zone description",
+          "rva": 3228400,
+          "before": "c7857002000000005041",
+          "after": "c7857002000000006041"
+        },
+        {
+          "name": "Enemy list readability",
+          "rva": 3228839,
+          "before": "c7857002000000004041",
+          "after": "c7857002000000005041"
+        },
+        {
+          "name": "Separate selected-zone text blocks",
+          "rva": 3226609,
+          "before": "f30f1005677ce605",
+          "constant": 208,
+          "disp_offset": 4
+        },
+        {
+          "name": "More room between boss schedule entries",
+          "rva": 3229234,
+          "before": "f30f1005b656e805",
+          "constant": 224,
+          "disp_offset": 4
+        },
+        {
+          "name": "Separate boss schedule from description",
+          "rva": 3229210,
+          "before": "0f2805df56e805",
+          "constant": 240,
+          "disp_offset": 3
+        },
+        {
+          "name": "Readable secondary zone information",
+          "rva": 3228736,
+          "before": "0f100515a3ea05",
+          "constant": 256,
+          "disp_offset": 3
+        },
+        {
+          "name": "Larger boss schedule labels",
+          "rva": 3230527,
+          "before": "c7856802000000003041",
+          "after": "c7856802000000006041"
+        },
+        {
+          "name": "Selected photo crop maximum Y",
+          "rva": 3191622,
+          "before": "f30f103d1630eb05",
+          "constant": 272,
+          "disp_offset": 4
+        },
+        {
+          "name": "Collapsed photo crop maximum Y",
+          "rva": 3191646,
+          "before": "f30f103d0230eb05",
+          "constant": 288,
+          "disp_offset": 4
+        },
+        {
+          "name": "Collapsed photo crop minimum Y",
+          "rva": 3191654,
+          "before": "f3440f100dfd2feb05",
+          "constant": 304,
+          "disp_offset": 5
+        },
+        {
+          "name": "Selected photo crop minimum Y",
+          "rva": 3191712,
+          "before": "f3440f100dc32feb05",
+          "constant": 320,
+          "disp_offset": 5
+        },
+        {
+          "name": "Collapsed photo crop minimum Y",
+          "rva": 3191730,
+          "before": "f3440f100db52feb05",
+          "constant": 336,
+          "disp_offset": 5
+        },
+        {
+          "name": "Zone photos have a separate asset path",
+          "rva": 102348387,
+          "before": "6d70713a2f2f696e746572666163652f676c7565732f6c6f6164696e6773637265656e732f",
+          "after": "6d70713a2f2f696e746572666163652f6173722f7a6f6e652d70686f746f735f5f5f5f5f2f"
+        },
+        {
+          "name": "Remove decorative zone tier dots",
+          "rva": 3175280,
+          "before": "415741564155",
+          "after": "4889c8c39090"
+        },
+        {
+          "name": "Keep hovered cards inside the zone scroll viewport",
+          "rva": 3189138,
+          "before": "0f28053710e705",
+          "constant": 352,
+          "disp_offset": 3
+        },
+        {
+          "name": "Red locked-zone requirement only; preserve heading color",
+          "rva": 3199042,
+          "before": "0f1044245c0f118424fc010000448b44246c448984240c020000",
+          "after_template": "0f1005000000000f118424fc010000c784240c0200000000803f",
+          "constant": 368,
+          "disp_offset": 3
+        }
+      ],
+      "payload": "415352207a6f6e652063617264732076330000000000000000000000000000000000c0420000000000000000000000000000404100000000000000000000000000000000000060410000000000006041000000000ad7a33ee17a943e3d0a573e3d0a573fcdcc4c3f8fc2353f0000803fcdcc4c3fcdcc4c3fcdcc4c3f0000803f0000803f0000803f0000803f0000803f000000000000000000000000f6285c3f0000000000000000000000009a99193f000000000000000000000000cdcc4c3e000040410000000000000000000000000000c04000000000000000000000000000004041000000000000000000000000000000000000000000000000000020410000000085eb513f14ae473f1f852b3f0000804300000000000000000000000000004043000000000000000000000000000080420000000000000000000000000000000000000000000000000000000000008042000000000000000000000000010000000000a041010000000000a041"
+    },
+    {
+      "format": 2,
+      "patches": [
+        {
+          "name": "Collapsed zone minimum height: 38 to 96",
+          "rva": 3189714,
+          "before": "f30f10058637eb05",
+          "constant": 32,
+          "disp_offset": 4
+        },
+        {
+          "name": "Separate zone rows: 4 to 12",
+          "rva": 3188584,
+          "before": "f30f1005c812e705",
+          "constant": 48,
+          "disp_offset": 4
+        },
+        {
+          "name": "Roomier zone card padding",
+          "rva": 3189898,
+          "before": "0f2805bf0ee705",
+          "constant": 64,
+          "disp_offset": 3
+        },
+        {
+          "name": "Quiet unselected border",
+          "rva": 3189688,
+          "before": "0f1005613feb05",
+          "constant": 80,
+          "disp_offset": 3
+        },
+        {
+          "name": "Readable locked zone titles and requirements",
+          "rva": 3198088,
+          "before": "0f28054117eb05",
+          "constant": 96,
+          "disp_offset": 3
+        },
+        {
+          "name": "Larger collapsed zone title",
+          "rva": 3198472,
+          "before": "c78424c000000000009841",
+          "after": "c78424c00000000000c041"
+        },
+        {
+          "name": "Larger unlock requirement",
+          "rva": 3199151,
+          "before": "c78424c000000000003041",
+          "after": "c78424c000000000006041"
+        },
+        {
+          "name": "Dim locked art independently of text",
+          "rva": 3191681,
+          "before": "0f28050830eb05",
+          "constant": 112,
+          "disp_offset": 3
+        },
+        {
+          "name": "Reduce selected background visual noise",
+          "rva": 3191748,
+          "before": "0f2805b52feb05",
+          "constant": 128,
+          "disp_offset": 3
+        },
+        {
+          "name": "Solid text backing at card edges",
+          "rva": 3192486,
+          "before": "0f2805f32ceb05",
+          "constant": 144,
+          "disp_offset": 3
+        },
+        {
+          "name": "Solid text backing across card body",
+          "rva": 3192529,
+          "before": "0f28059801e705",
+          "constant": 160,
+          "disp_offset": 3
+        },
+        {
+          "name": "Quiet top artwork and embedded logos",
+          "rva": 3192573,
+          "before": "0f2805ac2ceb05",
+          "constant": 176,
+          "disp_offset": 3
+        },
+        {
+          "name": "Soften selected-card glow",
+          "rva": 3190188,
+          "before": "c785200600003333b33e",
+          "after": "c785200600000000803e"
+        },
+        {
+          "name": "Reduce selected-card shadow spread",
+          "rva": 3190201,
+          "before": "f3440f100dde33eb05",
+          "constant": 192,
+          "disp_offset": 5
+        },
+        {
+          "name": "Selected zone heading",
+          "rva": 3227103,
+          "before": "c785700200000000c841",
+          "after": "c785700200000000f041"
+        },
+        {
+          "name": "Selected zone subtitle",
+          "rva": 3228014,
+          "before": "c7857002000000006041",
+          "after": "c7857002000000007041"
+        },
+        {
+          "name": "Selected zone description",
+          "rva": 3228400,
+          "before": "c7857002000000005041",
+          "after": "c7857002000000006041"
+        },
+        {
+          "name": "Enemy list readability",
+          "rva": 3228839,
+          "before": "c7857002000000004041",
+          "after": "c7857002000000005041"
+        },
+        {
+          "name": "Separate selected-zone text blocks",
+          "rva": 3226609,
+          "before": "f30f1005677ce605",
+          "constant": 208,
+          "disp_offset": 4
+        },
+        {
+          "name": "More room between boss schedule entries",
+          "rva": 3229234,
+          "before": "f30f1005b656e805",
+          "constant": 224,
+          "disp_offset": 4
+        },
+        {
+          "name": "Separate boss schedule from description",
+          "rva": 3229210,
+          "before": "0f2805df56e805",
+          "constant": 240,
+          "disp_offset": 3
+        },
+        {
+          "name": "Readable secondary zone information",
+          "rva": 3228736,
+          "before": "0f100515a3ea05",
+          "constant": 256,
+          "disp_offset": 3
+        },
+        {
+          "name": "Larger boss schedule labels",
+          "rva": 3230527,
+          "before": "c7856802000000003041",
+          "after": "c7856802000000006041"
+        },
+        {
+          "name": "Selected photo crop maximum Y",
+          "rva": 3191622,
+          "before": "f30f103d1630eb05",
+          "constant": 272,
+          "disp_offset": 4
+        },
+        {
+          "name": "Collapsed photo crop maximum Y",
+          "rva": 3191646,
+          "before": "f30f103d0230eb05",
+          "constant": 288,
+          "disp_offset": 4
+        },
+        {
+          "name": "Collapsed photo crop minimum Y",
+          "rva": 3191654,
+          "before": "f3440f100dfd2feb05",
+          "constant": 304,
+          "disp_offset": 5
+        },
+        {
+          "name": "Selected photo crop minimum Y",
+          "rva": 3191712,
+          "before": "f3440f100dc32feb05",
+          "constant": 320,
+          "disp_offset": 5
+        },
+        {
+          "name": "Collapsed photo crop minimum Y",
+          "rva": 3191730,
+          "before": "f3440f100db52feb05",
+          "constant": 336,
+          "disp_offset": 5
+        },
+        {
+          "name": "Zone photos have a separate asset path",
+          "rva": 102348387,
+          "before": "6d70713a2f2f696e746572666163652f676c7565732f6c6f6164696e6773637265656e732f",
+          "after": "6d70713a2f2f696e746572666163652f6173722f7a6f6e652d70686f746f735f5f5f5f5f2f"
+        },
+        {
+          "name": "Remove decorative zone tier dots",
+          "rva": 3175280,
+          "before": "415741564155",
+          "after": "4889c8c39090"
+        },
+        {
+          "name": "Keep hovered cards inside the zone scroll viewport",
+          "rva": 3189138,
+          "before": "0f28053710e705",
+          "constant": 352,
+          "disp_offset": 3
+        }
+      ],
+      "payload": "415352207a6f6e652063617264732076320000000000000000000000000000000000c0420000000000000000000000000000404100000000000000000000000000000000000060410000000000006041000000000ad7a33ee17a943e3d0a573e3d0a573fcdcc4c3f8fc2353f0000803fcdcc4c3fcdcc4c3fcdcc4c3f0000803f0000803f0000803f0000803f0000803f000000000000000000000000f6285c3f0000000000000000000000009a99193f000000000000000000000000cdcc4c3e000040410000000000000000000000000000c04000000000000000000000000000004041000000000000000000000000000000000000000000000000000020410000000085eb513f14ae473f1f852b3f0000804300000000000000000000000000004043000000000000000000000000000080420000000000000000000000000000000000000000000000000000000000008042"
+    },
+    {
+      "format": 1,
+      "patches": [
+        {
+          "name": "Collapsed zone minimum height: 38 to 58",
+          "rva": 3189714,
+          "before": "f30f10058637eb05",
+          "constant": 32,
+          "disp_offset": 4
+        },
+        {
+          "name": "Separate zone rows: 4 to 8",
+          "rva": 3188584,
+          "before": "f30f1005c812e705",
+          "constant": 48,
+          "disp_offset": 4
+        },
+        {
+          "name": "Roomier zone card padding",
+          "rva": 3189898,
+          "before": "0f2805bf0ee705",
+          "constant": 64,
+          "disp_offset": 3
+        },
+        {
+          "name": "Quiet unselected border",
+          "rva": 3189688,
+          "before": "0f1005613feb05",
+          "constant": 80,
+          "disp_offset": 3
+        },
+        {
+          "name": "Readable locked zone titles and requirements",
+          "rva": 3198088,
+          "before": "0f28054117eb05",
+          "constant": 96,
+          "disp_offset": 3
+        },
+        {
+          "name": "Larger collapsed zone title",
+          "rva": 3198472,
+          "before": "c78424c000000000009841",
+          "after": "c78424c00000000000a841"
+        },
+        {
+          "name": "Larger unlock requirement",
+          "rva": 3199151,
+          "before": "c78424c000000000003041",
+          "after": "c78424c000000000005041"
+        },
+        {
+          "name": "Dim locked art independently of text",
+          "rva": 3191681,
+          "before": "0f28050830eb05",
+          "constant": 112,
+          "disp_offset": 3
+        },
+        {
+          "name": "Reduce selected background visual noise",
+          "rva": 3191748,
+          "before": "0f2805b52feb05",
+          "constant": 128,
+          "disp_offset": 3
+        },
+        {
+          "name": "Solid text backing at card edges",
+          "rva": 3192486,
+          "before": "0f2805f32ceb05",
+          "constant": 144,
+          "disp_offset": 3
+        },
+        {
+          "name": "Solid text backing across card body",
+          "rva": 3192529,
+          "before": "0f28059801e705",
+          "constant": 160,
+          "disp_offset": 3
+        },
+        {
+          "name": "Quiet top artwork and embedded logos",
+          "rva": 3192573,
+          "before": "0f2805ac2ceb05",
+          "constant": 176,
+          "disp_offset": 3
+        },
+        {
+          "name": "Soften selected-card glow",
+          "rva": 3190188,
+          "before": "c785200600003333b33e",
+          "after": "c785200600000000803e"
+        },
+        {
+          "name": "Reduce selected-card shadow spread",
+          "rva": 3190201,
+          "before": "f3440f100dde33eb05",
+          "constant": 192,
+          "disp_offset": 5
+        },
+        {
+          "name": "Selected zone heading",
+          "rva": 3227103,
+          "before": "c785700200000000c841",
+          "after": "c785700200000000d041"
+        },
+        {
+          "name": "Selected zone subtitle",
+          "rva": 3228014,
+          "before": "c7857002000000006041",
+          "after": "c7857002000000007041"
+        },
+        {
+          "name": "Selected zone description",
+          "rva": 3228400,
+          "before": "c7857002000000005041",
+          "after": "c7857002000000006041"
+        },
+        {
+          "name": "Enemy list readability",
+          "rva": 3228839,
+          "before": "c7857002000000004041",
+          "after": "c7857002000000005041"
+        },
+        {
+          "name": "Separate selected-zone text blocks",
+          "rva": 3226609,
+          "before": "f30f1005677ce605",
+          "constant": 208,
+          "disp_offset": 4
+        },
+        {
+          "name": "More room between boss schedule entries",
+          "rva": 3229234,
+          "before": "f30f1005b656e805",
+          "constant": 224,
+          "disp_offset": 4
+        },
+        {
+          "name": "Separate boss schedule from description",
+          "rva": 3229210,
+          "before": "0f2805df56e805",
+          "constant": 240,
+          "disp_offset": 3
+        },
+        {
+          "name": "Readable secondary zone information",
+          "rva": 3228736,
+          "before": "0f100515a3ea05",
+          "constant": 256,
+          "disp_offset": 3
+        },
+        {
+          "name": "Larger boss schedule labels",
+          "rva": 3230527,
+          "before": "c7856802000000003041",
+          "after": "c7856802000000005041"
+        }
+      ],
+      "payload": "415352207a6f6e65206361726473207631000000000000000000000000000000000068420000000000000000000000000000004100000000000000000000000000000000000040410000000000004041000000000ad7a33ee17a943e3d0a573e3d0a573fcdcc4c3f8fc2353f0000803f8fc2f53db81e053e8fc2f53d0000803f1f856b3e0000803e3d0a573e0000803f0000000000000000000000006666663f0000000000000000000000007b142e3f0000000000000000000000000ad7a33e000040410000000000000000000000000000c04000000000000000000000000000000041000000000000000000000000000000000000000000000000000020410000000085eb513f14ae473f1f852b3f"
+    }
+  ]
+}
