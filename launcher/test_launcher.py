@@ -81,9 +81,12 @@ class Harness {
     foreach(string p in new[]{"../escape", "client/../game/save", "client//x", "client/NUL.json", "client/x:stream", "game/characters.txt", "/client/x", "client\\x"})
       if(Update.SafePath(p)) throw new Exception("Accepted unsafe path: " + p);
     if(!Update.SafePath("client/bootstrap.py")) throw new Exception("Rejected client file");
+    Update.Pinned=false; Update.BaseUrl="https://github.com/calinadrian/asr/releases/";
+    string github=Update.ArchiveUrl(new Release{version="1.2.3",sha256=new string('a',64),archive="releases/"+new string('a',64)+".zip"});
+    if(github!="https://github.com/calinadrian/asr/releases/download/v1.2.3/"+new string('a',64)+".zip") throw new Exception("Wrong GitHub asset URL: "+github);
     return 0;
    }
-   Update.BaseUrl=args[1]; string root=args[2]; Directory.CreateDirectory(root);
+   Update.BaseUrl=args[1]; Update.Pinned=true; string root=args[2]; Directory.CreateDirectory(root);
    if(args[0]=="native-tunnel") {
     using(var tunnel=new NativeTunnel(new Uri(args[1]),"127.0.0.1")) {
      File.WriteAllText(Path.Combine(root,"native-tunnel-url.txt"),tunnel.GameUrl);

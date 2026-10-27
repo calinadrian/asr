@@ -1,4 +1,4 @@
-# Azeroth Survivors: Realms
+# ASR
 
 Windows players install and update a native four-player co-op client, browse public rooms on Hassian's server inside the game window, and play with other people over the internet. The operator hosts the directory and relay at hassian.duckdns.org and publishes client updates. These product and platform requirements were confirmed in this conversation.
 
@@ -8,7 +8,7 @@ Windows desktop. The desired player flow opens the game directly and offers upda
 
 ## Source and update distribution
 
-The private GitHub repository is `calinadrian/azeroth-survivors-realms`. It stores our server and desktop integration source. The installed native game's current source is not present here; the independent Rust reconstruction in this workspace is a different build. Distributing a tested native game build and compiling that game from source are separate capabilities. The native game's existing in-game update interface should be used for the player-facing update flow. Automatic publication from GitHub is not configured yet.
+The public GitHub repository is `calinadrian/asr`. It stores our server and desktop integration source. The installed native game's current source is not present here; the independent Rust reconstruction in this workspace is a different build. Distributing a tested native game build and compiling that game from source are separate capabilities. The native game's existing in-game update interface should be used for the player-facing update flow. Launcher and client-file updates are delivered from its GitHub Releases, published by `Publish-Client-Update.cmd`; a push alone publishes nothing.
 
 ## Constraints
 

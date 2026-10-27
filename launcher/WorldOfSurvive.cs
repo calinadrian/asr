@@ -122,7 +122,13 @@ namespace WorldOfSurvive {
     }
     public static class Update {
         public static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
-        public static string BaseUrl = "https://hassian.duckdns.org:47770/launcher/";
+        public static string BaseUrl = "https://github.com/calinadrian/asr/releases/";
+        // GitHub serves release assets through redirects to its CDN; only our own test server is certificate-pinned.
+        public static bool Pinned = false;
+        static string EnvelopeUrl() { return BaseUrl + (Pinned ? "" : "latest/download/") + "latest-envelope.json"; }
+        public static string ArchiveUrl(Release release) {
+            return Pinned ? BaseUrl + release.archive : BaseUrl + "download/v" + release.version + "/" + release.sha256 + ".zip";
+        }
         public static readonly string ExeName = "WorldOfSurvive.exe";
         public static byte[] Resource(string name) {
             using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) {
@@ -222,7 +228,7 @@ namespace WorldOfSurvive {
         }
         public static Release Stage(string root, Action<string> status, Action<long,long> progress) {
             CheckLinks(root);
-            Envelope envelope = Json.Deserialize<Envelope>(Encoding.UTF8.GetString(Download(BaseUrl + "latest-envelope.json", 100000, null, true)));
+            Envelope envelope = Json.Deserialize<Envelope>(Encoding.UTF8.GetString(Download(EnvelopeUrl(), 100000, null, Pinned)));
             if (envelope == null) throw new InvalidDataException("Missing release envelope.");
             byte[] bytes = Convert.FromBase64String(envelope.manifest);
             byte[] signature = Convert.FromBase64String(envelope.signature);
@@ -238,7 +244,7 @@ namespace WorldOfSurvive {
                 }
             }
             status("Downloading version " + release.version + "...");
-            byte[] archive = Download(BaseUrl + release.archive, release.size, progress, true);
+            byte[] archive = Download(ArchiveUrl(release), release.size, progress, Pinned);
             if (archive.LongLength != release.size || Hash(archive) != release.sha256) throw new InvalidDataException("Update checksum did not match.");
             string stage = Path.Combine(root, ".update", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(stage);
@@ -323,7 +329,7 @@ namespace WorldOfSurvive {
         Button play, check, choose; CheckBox coop; bool busy; Process game;
         public Launcher(string directory, bool automatic) {
             root = directory; autoCheck = automatic;
-            Text = "Azeroth Survivors: Realms"; ClientSize = new Size(760, 560); MinimumSize = new Size(730, 550);
+            Text = "ASR"; ClientSize = new Size(760, 560); MinimumSize = new Size(730, 550);
             StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Segoe UI", 10); BackColor = Color.FromArgb(24, 29, 35); ForeColor = Color.FromArgb(244, 240, 229);
             TableLayoutPanel layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(30), ColumnCount = 1, RowCount = 9 };
@@ -332,7 +338,7 @@ namespace WorldOfSurvive {
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            Label title = new Label { Text = "Azeroth Survivors: Realms", Font = new Font("Segoe UI", 25, FontStyle.Bold), Dock = DockStyle.Fill };
+            Label title = new Label { Text = "ASR", Font = new Font("Segoe UI", 25, FontStyle.Bold), Dock = DockStyle.Fill };
             Label endpoint = new Label { Text = "Windows desktop game", Dock = DockStyle.Fill, ForeColor = Color.FromArgb(196, 205, 213) };
             version = new Label { Text = "Launcher " + BuildInfo.Version, Dock = DockStyle.Fill };
             state = new Label { Text = "Ready to check for updates.", Dock = DockStyle.Fill, AutoEllipsis = true, AccessibleName = "Current task" };
@@ -383,7 +389,7 @@ namespace WorldOfSurvive {
         async Task Check() {
             if (busy) return;
             if (game != null && !game.HasExited) { Status("Close your game or co-op session before updating."); return; }
-            Busy(true); Status("Checking for Azeroth Survivors: Realms updates...");
+            Busy(true); Status("Checking for ASR updates...");
             try {
                 Release release = await Task.Run(() => WorldOfSurvive.Update.Stage(root, Status, Progress));
                 if (release == null) { Status("You're up to date."); return; }
@@ -441,7 +447,7 @@ namespace WorldOfSurvive {
             }
             ProcessStartInfo start = new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,
                 "--native-session " + Quote(root) + " " + Quote(executable)) { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
-            game = Process.Start(start); Status("Windows game opened. Its co-op menu now connects to Azeroth Survivors: Realms."); play.Text = "Play Windows game";
+            game = Process.Start(start); Status("Windows game opened. Its co-op menu now connects to the ASR server."); play.Text = "Play Windows game";
         }
         public void SavePreview(string path) { using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0,0,Width,Height)); image.Save(path); } }
     }
@@ -463,7 +469,7 @@ namespace WorldOfSurvive {
                     Update.Verify(File.ReadAllBytes(args[1]), File.ReadAllBytes(args[1] + ".sig")); return 0;
                 }
                 if (args.Length == 2 && args[0] == "--test-update") {
-                    Update.BaseUrl = "https://127.0.0.1:47770/launcher/";
+                    Update.BaseUrl = "https://127.0.0.1:47770/launcher/"; Update.Pinned = true;
                     Directory.CreateDirectory(args[1]);
                     Release staged = Update.Stage(args[1], message => {}, null);
                     if (staged != null) Update.Apply(args[1], File.ReadAllText(Path.Combine(args[1], "pending-update.txt")));
@@ -500,7 +506,7 @@ namespace WorldOfSurvive {
                 if (args.Length > 0 && (args[0] == "--verify-release" || args[0] == "--test-update")) {
                     Console.Error.WriteLine(error.Message); return 1;
                 }
-                MessageBox.Show(error.Message, "Azeroth Survivors: Realms", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1;
+                MessageBox.Show(error.Message, "ASR", MessageBoxButtons.OK, MessageBoxIcon.Error); return 1;
             }
         }
     }

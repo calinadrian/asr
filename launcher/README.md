@@ -2,7 +2,7 @@
 
 After publishing, distribute `downloads/WorldOfSurvive.exe`. A build awaiting publication is in `downloads/launcher-candidate/WorldOfSurvive.exe`. It installs its own launcher files under `%LOCALAPPDATA%\WorldOfSurvive` without administrator rights, checks our update channel, and offers Install game / Play. The co-op game is installed by its author's pinned installer into that personal folder's `game` directory. No downloaded game files are bundled into our executable or committed here.
 
-Our update channel is `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`; the directory server serves it using the existing TCP 47770 forward. Players do not need to configure the server address or extract a separate certificate pack. The launcher embeds our server certificate and release-verification public key. This authenticates our updates; it is separate from Windows Authenticode code signing.
+Our update channel is GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): the launcher reads `releases/latest/download/latest-envelope.json`, then downloads `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 still read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, so every release is also published there; that is how they move to GitHub. Players do not need to configure anything. The launcher embeds our server certificate and release-verification public key; every update is checked against that key whichever host served it. This authenticates our updates; it is separate from Windows Authenticode code signing.
 
 Normal Play launches the selected Windows `AzerothSurvivors.exe` with its built-in Co-op menu connected to our service. Use Choose game to select an existing desktop installation; its path is kept in `desktop-game.txt` and preserved by updates. The native service supports game 0.120.1 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its original picker still offers five, but the server refuses a fifth member. The separate co-op mod remains an explicit optional checkbox because its room interface opens a browser and uses a separate room list. The selected game's own updater and save locations remain its responsibility.
 
@@ -13,17 +13,17 @@ The launcher starts a separate helper for the lifetime of the desktop game. It p
 Edit `launcher/WorldOfSurvive.cs` and/or our files under `launcher/client/`, then build a candidate and test it from this project folder:
 
 ```powershell
-& '.\Azeroth Survivors Together\.coop-runtime\python.exe' launcher\release.py --version 0.1.4 --sequence 5 --stage-only
+& '.\Azeroth Survivors Together\.coop-runtime\python.exe' launcher\release.py --version 0.1.5 --sequence 6 --stage-only
 & '.\Azeroth Survivors Together\.coop-runtime\python.exe' launcher\test_launcher.py
 ```
 
 When ready to publish that exact tested candidate:
 
 ```powershell
-.\Publish-Client-Update.cmd 0.1.4 5
+.\Publish-Client-Update.cmd 0.1.5 6
 ```
 
-Both the version and integer sequence must increase. Staging compiles the executable, packages our client files and signs the release with RSA/SHA-256 without changing the live channel. The publish command promotes that candidate without rebuilding it and atomically publishes its manifest/signature envelope. The running server then serves the new release immediately. Players receive it on their next launcher start or when they choose Check for updates. A running game is never forcibly interrupted; the update check is blocked while that launcher's room browser is running.
+Both the version and integer sequence must increase. Staging compiles the executable, packages our client files and signs the release with RSA/SHA-256 without changing the live channel. The publish command promotes that candidate without rebuilding it, atomically publishes its manifest/signature envelope on our server, then creates the GitHub release `v<version>` with `gh` (log in once with `gh auth login`). If the GitHub step fails, retry it alone with `launcher\release.py --version <version> --sequence <n> --upload`. Pushing commits to GitHub does not publish anything; only this command does. Players receive it on their next launcher start or when they choose Check for updates. A running game is never forcibly interrupted; the update check is blocked while that launcher's room browser is running.
 
 The update package can replace only `WorldOfSurvive.exe`, `server-cert.pem` and files under `client/`. It cannot target the game's characters, settings, saves or third-party binaries. Download and extraction limits, per-file hashes, path checks and signature checks run before installation. A separate copy of the launcher waits for the old process to exit before replacing it; an ordinary apply failure restores files from a backup. Staging folders retain backups for recovery. Updates require free space and write access; process crashes or power loss can require retrying the launcher.
 

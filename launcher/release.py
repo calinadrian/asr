@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / 'server/state'
 UPDATES = STATE / 'updates'
+GITHUB_REPO = 'calinadrian/asr'
 
 
 def atomic(path, data):
@@ -67,7 +68,7 @@ def publish(version, sequence, output=None, stage_only=True):
         (build / 'BuildInfo.cs').write_text(
             f'[assembly: System.Reflection.AssemblyVersion("{version}.0")]\n'
             f'[assembly: System.Reflection.AssemblyFileVersion("{version}.0")]\n'
-            '[assembly: System.Reflection.AssemblyTitle("Azeroth Survivors: Realms")]\n'
+            '[assembly: System.Reflection.AssemblyTitle("ASR")]\n'
             'namespace WorldOfSurvive { internal static class BuildInfo {\n'
             f'public const string Version = "{version}"; public const long Sequence = {sequence}L;\n'
             'public const string InstallerUrl = "https://github.com/bymarvin/azeroth-survivors-together/releases/download/v0.0.30/Azeroth-Survivors-Together-Installer.exe";\n'
@@ -141,6 +142,23 @@ def promote(version, sequence):
         signature=base64.b64encode(signature).decode()), separators=(',', ':')).encode())
     atomic(ROOT / 'downloads/WorldOfSurvive.exe', exe)
     print(f'Published tested candidate {version} (sequence {sequence})')
+    upload(version, sequence)
+
+
+def upload(version, sequence):
+    """Attach the published release to GitHub, where launchers since 0.1.5 look for updates."""
+    raw = (UPDATES / 'latest.json').read_bytes()
+    manifest = json.loads(raw)
+    if manifest['version'] != version or manifest['sequence'] != sequence:
+        raise ValueError('The published release does not match the requested release')
+    # Launchers fetch releases/latest/download/latest-envelope.json, then download/v<version>/<sha256>.zip.
+    assets = [UPDATES / 'latest-envelope.json', UPDATES / manifest['archive'], UPDATES / 'WorldOfSurvive.exe']
+    result = subprocess.run(['gh', 'release', 'create', 'v' + version, '--repo', GITHUB_REPO, '--latest',
+        '--title', f'ASR {version}', '--notes', f'Launcher update {version} (sequence {sequence}).'] + [str(a) for a in assets])
+    if result.returncode:
+        raise SystemExit(f'GitHub upload failed. The server channel is already updated; retry with:\n'
+                         f'  launcher\\release.py --version {version} --sequence {sequence} --upload')
+    print(f'Uploaded {version} to https://github.com/{GITHUB_REPO}/releases')
 
 
 if __name__ == '__main__':
@@ -150,8 +168,11 @@ if __name__ == '__main__':
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--stage-only', action='store_true')
     mode.add_argument('--promote', action='store_true')
+    mode.add_argument('--upload', action='store_true')
     args = parser.parse_args()
     if args.promote:
         promote(args.version, args.sequence)
+    elif args.upload:
+        upload(args.version, args.sequence)
     else:
         publish(args.version, args.sequence, stage_only=True)
