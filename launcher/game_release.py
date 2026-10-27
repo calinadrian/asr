@@ -46,8 +46,21 @@ def pack(source, prefix, folder):
 
 def ensure_release(tag):
     if subprocess.run(['gh', 'release', 'view', tag, '--repo', GITHUB_REPO], capture_output=True).returncode:
-        subprocess.run(['gh', 'release', 'create', tag, '--repo', GITHUB_REPO, '--prerelease', '--latest=false',
-                        '--title', 'ASR game', '--notes', 'The game and its data, read by ASR.exe and the game itself.'], check=True)
+        subprocess.run(['gh', 'release', 'create', tag, '--repo', GITHUB_REPO, '--latest',
+                        '--title', 'ASR', '--notes', 'ASR, the game and its data.'], check=True)
+
+
+def describe(version, notes, tag=GAME_TAG):
+    """Title the release after the version players get, with install instructions and what changed."""
+    text = (ROOT / 'launcher/release-notes.md').read_text(encoding='utf-8')
+    text = text.replace('{version}', version).replace('{notes}', notes or 'Improvements and fixes.')
+    with tempfile.NamedTemporaryFile('w', suffix='.md', delete=False, encoding='utf-8') as file:
+        file.write(text)
+    try:
+        subprocess.run(['gh', 'release', 'edit', tag, '--repo', GITHUB_REPO, '--title', f'ASR {version}',
+                        '--notes-file', file.name, '--prerelease=false', '--latest'], check=True)
+    finally:
+        Path(file.name).unlink()
 
 
 def upload(tag, folder, manifests):
@@ -75,6 +88,7 @@ def publish(exe, version, notes, tag=GAME_TAG):
         (folder / 'latest.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
         ensure_release(tag)
         upload(tag, folder, ['latest.json'])
+    describe(version, notes, tag)
     print(f'Published game {version} to https://github.com/{GITHUB_REPO}/releases/download/{tag}/latest.json')
 
 
@@ -104,8 +118,11 @@ if __name__ == '__main__':
     parser.add_argument('--notes', default='')
     parser.add_argument('--data', help='a game Data folder to publish instead of an executable')
     parser.add_argument('--tag', default=GAME_TAG)
+    parser.add_argument('--describe', action='store_true', help='only retitle the release and rewrite its notes for --version')
     args = parser.parse_args()
-    if args.data:
+    if args.describe:
+        describe(args.version, args.notes, args.tag)
+    elif args.data:
         publish_data(args.data, args.tag)
     elif args.exe and args.version:
         publish(args.exe, args.version, args.notes, args.tag)
