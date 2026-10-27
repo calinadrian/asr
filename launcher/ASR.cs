@@ -112,8 +112,31 @@ namespace ASR {
                 start.EnvironmentVariables["WOW_ROGUE_COOP_URL"] = tunnel.GameUrl;
                 // With presence on, the game browses co-op through its author's presence connection instead of this URL.
                 start.EnvironmentVariables["WOW_ROGUE_PRESENCE"] = "0";
-                using (Process game = Process.Start(start)) { game.WaitForExit(); return game.ExitCode; }
+                // The game updates itself from our GitHub release, then restarts with this same environment.
+                start.EnvironmentVariables["WOW_ROGUE_UPDATE_URL"] = GameUpdateUrl;
+                start.EnvironmentVariables["WOW_ROGUE_UPDATE_AUTO"] = "1";
+                Process game = Process.Start(start);
+                while (true) {
+                    game.WaitForExit(); int code = game.ExitCode; game.Dispose();
+                    game = Restarted(executable);
+                    if (game == null) return code;
+                }
             }
+        }
+        public const string GameUpdateUrl = "https://github.com/calinadrian/asr/releases/download/game/latest.json";
+        // Keeps the tunnel open across the game's restart after it installs an update.
+        static Process Restarted(string executable) {
+            DateTime deadline = DateTime.UtcNow.AddSeconds(20);
+            while (DateTime.UtcNow < deadline) {
+                foreach (Process candidate in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(executable))) {
+                    try { if (String.Equals(candidate.MainModule.FileName, executable, StringComparison.OrdinalIgnoreCase)) return candidate; }
+                    catch (System.ComponentModel.Win32Exception) { }
+                    catch (InvalidOperationException) { }
+                    candidate.Dispose();
+                }
+                Thread.Sleep(500);
+            }
+            return null;
         }
     }
     public sealed class ReleaseFile { public string path; public long size; public string sha256; }
@@ -332,7 +355,7 @@ namespace ASR {
     public sealed class Launcher : Form {
         readonly string root; readonly bool autoCheck;
         Label state, version; TextBox log; ProgressBar progress;
-        Button play, check, choose; CheckBox coop; bool busy; Process game;
+        Button play, check; bool busy; Process game;
         public Launcher(string directory, bool automatic) {
             root = directory; autoCheck = automatic;
             Text = "ASR"; ClientSize = new Size(760, 560); MinimumSize = new Size(730, 550);
@@ -345,24 +368,21 @@ namespace ASR {
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16)); layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
             Label title = new Label { Text = "ASR", Font = new Font("Segoe UI", 25, FontStyle.Bold), Dock = DockStyle.Fill };
-            Label endpoint = new Label { Text = "Windows desktop game", Dock = DockStyle.Fill, ForeColor = Color.FromArgb(196, 205, 213) };
+            Label endpoint = new Label { Text = "Survive the waves, alone or with friends", Dock = DockStyle.Fill, ForeColor = Color.FromArgb(196, 205, 213) };
             version = new Label { Text = "Launcher " + BuildInfo.Version, Dock = DockStyle.Fill };
             state = new Label { Text = "Ready to check for updates.", Dock = DockStyle.Fill, AutoEllipsis = true, AccessibleName = "Current task" };
             progress = new ProgressBar { Dock = DockStyle.Fill, Minimum = 0, Maximum = 100, AccessibleName = "Download progress" };
             log = new TextBox { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill,
                 BackColor = Color.FromArgb(32, 39, 47), ForeColor = ForeColor, BorderStyle = BorderStyle.FixedSingle, AccessibleName = "Activity log" };
             FlowLayoutPanel actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-            play = new Button { Text = NativeGame() != null ? "Play Windows game" : "Install game", Width = 180, Height = 42, BackColor = Color.FromArgb(232, 182, 76), ForeColor = Color.FromArgb(24,29,35), FlatStyle = FlatStyle.Flat, AccessibleName = "Install or play Windows game" };
+            play = new Button { Text = NativeGame() != null ? "Play" : "Install game", Width = 180, Height = 42, BackColor = Color.FromArgb(232, 182, 76), ForeColor = Color.FromArgb(24,29,35), FlatStyle = FlatStyle.Flat, AccessibleName = "Install or play the game" };
             check = new Button { Text = "Check for updates", Width = 175, Height = 42, FlatStyle = FlatStyle.Flat, ForeColor = ForeColor };
-            choose = new Button { Text = "Choose game...", Width = 145, Height = 42, FlatStyle = FlatStyle.Flat, ForeColor = ForeColor };
-            coop = new CheckBox { Text = "Use separate co-op mod (opens its browser lobby)", Dock = DockStyle.Fill, AutoSize = true };
-            actions.Controls.Add(play); actions.Controls.Add(check); actions.Controls.Add(choose);
+            actions.Controls.Add(play); actions.Controls.Add(check);
             layout.Controls.Add(title); layout.Controls.Add(endpoint); layout.Controls.Add(version); layout.Controls.Add(state);
-            layout.Controls.Add(progress); layout.Controls.Add(log); layout.Controls.Add(coop); layout.Controls.Add(new Panel()); layout.Controls.Add(actions); Controls.Add(layout);
+            layout.Controls.Add(progress); layout.Controls.Add(log); layout.Controls.Add(new Panel()); layout.Controls.Add(new Panel()); layout.Controls.Add(actions); Controls.Add(layout);
             AcceptButton = play;
             play.Click += async (s,e) => await RunGame(); check.Click += async (s,e) => await Check();
-            choose.Click += (s,e) => ChooseGame();
-            Shown += async (s,e) => { Note(NativeGame() != null ? "Desktop game: " + NativeGame() : "Choose an existing Windows game, or install one."); if (autoCheck) await Check(); };
+            Shown += async (s,e) => { Note(NativeGame() != null ? "The game is installed. It updates itself when it starts." : "Press Install game to download the game."); if (autoCheck) await Check(); };
             FormClosing += (s,e) => { if (busy) { e.Cancel = true; Status("Wait for the current operation to finish."); } };
         }
         bool Installed() { return File.Exists(Path.Combine(root, "game", "Start-Coop.cmd")); }
@@ -377,13 +397,6 @@ namespace ASR {
             }
             return null;
         }
-        void ChooseGame() {
-            using (OpenFileDialog picker = new OpenFileDialog { Title = "Choose your Windows game", Filter = "Azeroth Survivors|AzerothSurvivors.exe", CheckFileExists = true }) {
-                if (picker.ShowDialog(this) != DialogResult.OK) return;
-                File.WriteAllText(Path.Combine(root, "desktop-game.txt"), picker.FileName);
-                play.Text = "Play Windows game"; Status("Selected desktop game: " + picker.FileName);
-            }
-        }
         void Note(string message) { if (InvokeRequired) { BeginInvoke(new Action<string>(Note), message); return; } log.AppendText(message + Environment.NewLine); }
         void Status(string message) { if (InvokeRequired) { BeginInvoke(new Action<string>(Status), message); return; } state.Text = message; Note(message); }
         void Progress(long done, long total) {
@@ -391,7 +404,7 @@ namespace ASR {
             progress.Style = total > 0 ? ProgressBarStyle.Continuous : ProgressBarStyle.Marquee;
             if (total > 0) progress.Value = (int)Math.Min(100, done * 100 / total);
         }
-        void Busy(bool value) { busy = value; play.Enabled = check.Enabled = choose.Enabled = coop.Enabled = !value; if (!value) { progress.Style = ProgressBarStyle.Continuous; progress.Value = 0; } }
+        void Busy(bool value) { busy = value; play.Enabled = check.Enabled = !value; if (!value) { progress.Style = ProgressBarStyle.Continuous; progress.Value = 0; } }
         async Task Check() {
             if (busy) return;
             if (game != null && !game.HasExited) { Status("Close your game or co-op session before updating."); return; }
@@ -413,7 +426,7 @@ namespace ASR {
             if (game != null && !game.HasExited) { Status("Your game or co-op session is already running."); return; }
             Busy(true);
             try {
-                if (!coop.Checked && NativeGame() != null) { StartNative(); return; }
+                if (NativeGame() != null) { StartNative(); return; }
                 if (!Installed()) {
                     Status("Downloading the co-op installer...");
                     await Task.Run(() => {
@@ -431,18 +444,13 @@ namespace ASR {
                         }
                     });
                 }
-                if (!coop.Checked) { StartNative(); return; }
-                string bootstrap = Path.Combine(root, "client", "bootstrap.py");
-                if (!File.Exists(bootstrap)) throw new IOException("Client files are missing. Use Check for updates first.");
-                ProcessStartInfo start = new ProcessStartInfo(Path.Combine(root, "game", ".coop-runtime", "python.exe"), Quote(bootstrap)) {
-                    WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
-                game = Process.Start(start); Status("Room browser opened. Create a room or join another player."); play.Text = "Play";
+                StartNative();
             } catch (Exception error) { Status(error.Message); }
             finally { Busy(false); }
         }
         void StartNative() {
             string executable = NativeGame();
-            if (executable == null) throw new IOException("Choose AzerothSurvivors.exe using Choose game.");
+            if (executable == null) throw new IOException("The game is not installed. Press Install game.");
             foreach (Process running in Process.GetProcessesByName("AzerothSurvivors")) {
                 try {
                     if (String.Equals(running.MainModule.FileName, executable, StringComparison.OrdinalIgnoreCase)) {
@@ -453,7 +461,7 @@ namespace ASR {
             }
             ProcessStartInfo start = new ProcessStartInfo(Assembly.GetExecutingAssembly().Location,
                 "--native-session " + Quote(root) + " " + Quote(executable)) { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true };
-            game = Process.Start(start); Status("Windows game opened. Its co-op menu now connects to the ASR server."); play.Text = "Play Windows game";
+            game = Process.Start(start); Status("Game opened. Its co-op menu connects to the ASR server."); play.Text = "Play";
         }
         public void SavePreview(string path) { using (Bitmap image = new Bitmap(Width, Height)) { DrawToBitmap(image, new Rectangle(0,0,Width,Height)); image.Save(path); } }
     }

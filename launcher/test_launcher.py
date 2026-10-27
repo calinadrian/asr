@@ -193,7 +193,7 @@ def main():
             run('paths')
             native = folder / 'native-game'
             native.mkdir()
-            (native / 'Game.cs').write_text('class Game { static void Main() { System.IO.File.WriteAllText("native-started.txt", "desktop"); System.IO.File.WriteAllText("native-server.txt", System.Environment.GetEnvironmentVariable("WOW_ROGUE_COOP_URL") ?? "missing"); System.IO.File.WriteAllText("native-presence.txt", System.Environment.GetEnvironmentVariable("WOW_ROGUE_PRESENCE") ?? "missing"); } }')
+            (native / 'Game.cs').write_text('class Game { static void Main() { System.IO.File.WriteAllText("native-started.txt", "desktop"); System.IO.File.WriteAllText("native-server.txt", System.Environment.GetEnvironmentVariable("WOW_ROGUE_COOP_URL") ?? "missing"); System.IO.File.WriteAllText("native-presence.txt", System.Environment.GetEnvironmentVariable("WOW_ROGUE_PRESENCE") ?? "missing"); System.IO.File.WriteAllText("native-update.txt", System.Environment.GetEnvironmentVariable("WOW_ROGUE_UPDATE_URL") ?? "missing"); } }')
             subprocess.run([str(compiler), '/nologo', '/target:winexe', '/out:' + str(native / 'AzerothSurvivors.exe'), str(native / 'Game.cs')], check=True)
             (installation / 'desktop-game.txt').write_text(str(native / 'AzerothSurvivors.exe'))
             run('desktop')
@@ -204,6 +204,7 @@ def main():
             assert (native / 'native-started.txt').read_text() == 'desktop'
             assert (native / 'native-server.txt').read_text().startswith('ws://127.0.0.1:')
             assert (native / 'native-presence.txt').read_text() == '0'
+            assert (native / 'native-update.txt').read_text() == 'https://github.com/calinadrian/asr/releases/download/game/latest.json'
             sequence = json.loads((ROOT / 'downloads/launcher-candidate/latest.json').read_bytes())['sequence'] + 100
             signed_release(sequence)
             run('install')

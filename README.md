@@ -6,7 +6,7 @@ This repository holds what runs around the game: the Windows launcher, the co-op
 
 ## For players
 
-Download `ASR.exe` from the [latest release](https://github.com/calinadrian/asr/releases/latest) and run it. It installs itself into your user folder (no administrator rights), checks for updates every time it starts, and opens the game with co-op connected to our server. Your characters, settings and saves are never touched by updates.
+Download `ASR.exe` from the [latest release](https://github.com/calinadrian/asr/releases/latest) and run it. It is the only program you need: it installs itself and the game into your user folder (no administrator rights), keeps both updated, and opens the game with co-op connected to our server. Your characters, settings and saves are never touched by updates.
 
 ## How updates reach players
 
@@ -20,7 +20,7 @@ asr test
 asr publish 0.1.8 9
 ```
 
-This builds and signs the launcher, tests it, then publishes it on our server and as a GitHub release. Run `asr` alone for every command, including `asr server` and `asr play`. Updates cover the launcher and its client files; the game executable itself is not distributed here. Details are in [launcher/README.md](launcher/README.md).
+This builds and signs the launcher, tests it, then publishes it on our server and as a GitHub release. Run `asr` alone for every command, including `asr server` and `asr play`. The game updates itself from the [`game`](https://github.com/calinadrian/asr/releases/tag/game) release, distributed with its author's permission; publish a tested build with `asr publish-game`. Details are in [launcher/README.md](launcher/README.md).
 
 ## Running the server
 
