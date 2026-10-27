@@ -67,7 +67,7 @@ def publish(version, sequence, output=None, stage_only=True):
         (build / 'BuildInfo.cs').write_text(
             f'[assembly: System.Reflection.AssemblyVersion("{version}.0")]\n'
             f'[assembly: System.Reflection.AssemblyFileVersion("{version}.0")]\n'
-            '[assembly: System.Reflection.AssemblyTitle("World of Survive")]\n'
+            '[assembly: System.Reflection.AssemblyTitle("Azeroth Survivors: Realms")]\n'
             'namespace WorldOfSurvive { internal static class BuildInfo {\n'
             f'public const string Version = "{version}"; public const long Sequence = {sequence}L;\n'
             'public const string InstallerUrl = "https://github.com/bymarvin/azeroth-survivors-together/releases/download/v0.0.30/Azeroth-Survivors-Together-Installer.exe";\n'

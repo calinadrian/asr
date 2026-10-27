@@ -34,7 +34,7 @@ def configure(host, lan):
             raise ValueError('Endpoint changed: stop the server and archive server/state before reconfiguring; redistribute the new player pack')
     else:
         key = ec.generate_private_key(ec.SECP256R1())
-        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'World of Survive co-op')])
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'Azeroth Survivors: Realms co-op')])
         sans = []
         for address in dict.fromkeys([host, lan, '127.0.0.1', 'localhost']):
             try:
@@ -163,7 +163,7 @@ def play():
     launcher_root = ROOT / 'downloads/desktop-launcher'
     launcher = launcher_root / 'WorldOfSurvive.exe'
     if not launcher.is_file():
-        raise SystemExit('Build the World of Survive desktop launcher first.')
+        raise SystemExit('Build the Azeroth Survivors: Realms desktop launcher first.')
     # This project entry point is for the operator PC; remote players use the
     # normal launcher and its public hostname setting.
     (launcher_root / 'use-local-server').write_text('1')
@@ -174,7 +174,7 @@ def play():
     else:
         command = [str(launcher), '--root', str(launcher_root), '--no-auto-check']
     subprocess.Popen(command, cwd=launcher_root, creationflags=subprocess.CREATE_NO_WINDOW)
-    print('Opened World of Survive. Use the desktop game\'s Co-op menu to host or join.')
+    print('Opened Azeroth Survivors: Realms. Use the desktop game\'s Co-op menu to host or join.')
 
 
 if __name__ == '__main__':

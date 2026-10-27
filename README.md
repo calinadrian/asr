@@ -1,4 +1,4 @@
-# World of Survive
+# Azeroth Survivors: Realms
 
 Private source repository for our Windows game integration, native co-op service, and update tooling.
 

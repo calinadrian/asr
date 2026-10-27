@@ -1,4 +1,4 @@
-"""Connect the installed co-op game to the World of Survive directory."""
+"""Connect the installed co-op game to the Azeroth Survivors: Realms directory."""
 import json
 import os
 from pathlib import Path
