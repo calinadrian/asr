@@ -111,6 +111,16 @@ The zone's terrain, creatures and card come from a vanilla 1.12.1 client, which 
 
 To try it locally, build it with `tools\python\python.exe launcher\durotar_assets.py path\to\vanilla\Data --installed path\to\Data --out path\to\Data\patch-X.MPQ` and patch a copy of the game with `tools\python\python.exe launcher\durotar_patch.py ASR.exe --out ASR-durotar.exe`. Run `python -m unittest discover -s launcher -p test_durotar.py -v` for the patch, asset and release checks.
 
+## Blood Elf race (in progress)
+
+Blood Elf is planned as a ninth playable race (DBC race 10). Its models and textures come from a retail World of Warcraft install, which is not in the repository; see `docs/blood-elf.md`. `launcher/bloodelf_assets.py` builds `patch-W.MPQ` from it. It contains both models down-converted to the 1.12 layout (`retail_m2.py`), their customization textures cut into 1.12 pieces (`retail_textures.py`, `blp.py`), and the installed game's DBCs with race 10 rows. It reads the retail install through `casc.py` and `db2.py` and never writes to it, and it refuses to build if any row names a missing model, geoset or texture.
+
+```powershell
+tools\python\python.exe launcher\bloodelf_assets.py "path\to\World of Warcraft" --installed path\to\Data --out downloads\bloodelf\patch-W.MPQ
+```
+
+The game does not offer the race until its executable is patched, which is not written yet, so the archive is not published. Run `python -m unittest discover -s launcher -p "test_bl*.py"` and `-p test_retail_m2.py` for the table, converter and texture checks.
+
 ## ASR addons
 
 `ASR_Nameplates` is an independent compact nameplate addon: 72 x 6 health bars,

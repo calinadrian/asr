@@ -210,6 +210,34 @@ Checked by compositing skin, face, underwear and scalp the 1.12 way on a 256x256
 and rasterizing the converted models posed at stand. Both show correct faces, eyes,
 ears, hair and underwear.
 
+## Tables and archive (`launcher/bloodelf_assets.py`)
+
+`bloodelf_assets.py RETAIL --installed DATA --out patch-W.MPQ` converts both models,
+cuts their textures and writes patch-W.MPQ (stored files, built by `photo_archive.build`)
+in about a minute. Only `patch.MPQ` carries the DBCs it changes, so no other ASR patch
+overrides them. Hair styles are added in display order while the model fits 65,535
+indices: 6 for the male, 15 for the female.
+
+| Table | Race 10 rows |
+|---|---|
+| `ChrRaces` | Human's row with ID 10, the Undead's Horde faction template, displays 15476/15475, prefix `Be`, file string `BloodElf`, name "Blood Elf", no cinematic, Human's customization words |
+| `CharBaseInfo` | (10, class) for paladin, hunter, rogue, priest, mage, warlock |
+| `CreatureDisplayInfo` / `CreatureModelData` | 15476 and 15475 (TBC's IDs, free in 1.12), copied from the Human displays 49/50, naming `Character\BloodElf\<Sex>\BloodElf<Sex>.mdx` |
+| `CharSections` | 428 male and 488 female rows from `retail_textures` |
+| `CharHairGeosets` | one per kept hair style, scalp hidden |
+| `CharacterFacialHairStyles` | male: clean and six beards (1xx value only); female: one empty row |
+
+The 1.12 layouts confirmed on the installed tables:
+- **`CharSections`:** ID, race, sex, section, variation, colour, three textures, flags.
+- **`CharHairGeosets`:** ID, race, sex, variation, geoset, show-scalp.
+- **`CharacterFacialHairStyles`:** race, sex, variation, three unused words, then 1xx, 3xx and 2xx values.
+- **`CharBaseInfo`:** two-byte records.
+
+Before writing, `verify` follows race 10 through the patched tables to every model
+file, geoset and texture they name, and the build stops on any gap. The first build
+(1,501 files, 35,257,175 bytes) also read back by name through the MPQ reader, and
+both extracted models passed the v256 checks. The archive is not installed or published.
+
 ## Proposed first playable pass
 
 - DBC race ID 10, key `BLOODELF`, name "Blood Elf", in every supported locale.
