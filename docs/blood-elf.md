@@ -141,6 +141,48 @@ What the down-conversion to the 1.12 layout (version 256, one file) has to do:
   model's `TXID`, and are handled by the UV remap above.
 - Check the native renderer's joint limit against 245 to 252 bones.
 
+## Model converter (`launcher/retail_m2.py`)
+
+`Converter(model, skel, skin, name, keep_ids, geosets, playable)` writes a 1.12 MD20
+v256 file:
+- bones and their tracks, with retail per-sequence keys moved onto one global timeline
+  and int16 quaternions expanded to floats;
+- the embedded sequences whose IDs 1.12 knows, and 1.12's PlayableAnimationLookup with
+  missing animations falling back to stand;
+- attachments, one embedded view built from the LOD 0 skin, textures, materials, lookups,
+  and texture weight and transform tracks.
+
+Cameras, events, lights, ribbons, particles and the external `.anim` sequences are
+not carried over.
+
+Results with the animation IDs of 1.12 `HumanMale.m2` / `HumanFemale.m2`, checked by
+reading the output back (every array, range, lookup and bone index in bounds, unit
+quaternions) and by skinning it at the first frame of stand and run:
+
+| | Male | Female |
+|---|---|---|
+| Sequences | 95 | 94 |
+| Vertices / indices | 15,843 / 63,516 | 13,260 / 57,534 |
+| Hair styles kept | 6 (geosets 2–7) | 12 (geosets 2–13) |
+| Facial hair kept | 6 (102–107) | none |
+| File size | 9.9 MB | 10.3 MB |
+
+Geoset mapping used:
+- **Kept as is:** 401–404, 501–504, 701–702, 802–803, 902–903, 1002, 1102, 1202,
+  1301–1302 and 1502–1504.
+- **Folded into geoset 0:** 1801 (bare waist under belts), 2001 (feet), 2201 (torso),
+  2301 (hands), 3202 (face), 3301 (eyes) and 3401 (eyebrows).
+- **Dropped:** everything else: retail-only clothing variants (505–510, 905, 1104–1105,
+  1203–1204, 1303, 1505–1510), eye glows, Demon Hunter pieces and the remaining hair
+  styles.
+- **Why:** the male's clothing alone is 46,000 indices, so the 65,535 limit leaves room
+  for six hair styles.
+
+The eyes (3301) draw a retail eye-colour texture (type 19) through a two-texture
+shader. They need a baked eye texture as a type 0 (file name) texture. One base-mesh
+submesh draws a type 9 texture that is not identified yet. Both currently fall back to
+the body texture.
+
 ## Proposed first playable pass
 
 - DBC race ID 10, key `BLOODELF`, name "Blood Elf", in every supported locale.
