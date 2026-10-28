@@ -13,6 +13,39 @@ PROFILE = Path(__file__).with_name('zone-cards-profile.json')
 SECTION = b'.asrui\0\0'
 
 
+def plan(patches, data, offset, va, existing, prior_patches):
+    """The (file offset, bytes) edits for one build's layout; fails if any original instruction differs."""
+    edits = []
+    for patch in patches:
+        before = bytes.fromhex(patch['before'])
+        if 'constant' in patch:
+            after = bytearray.fromhex(patch.get('after_template', patch['before']))
+            rip_end = patch.get('rip_end', len(before))
+            if not patch['disp_offset'] + 4 <= rip_end <= len(before):
+                raise ValueError('Invalid UI instruction address span')
+            struct.pack_into('<i', after, patch['disp_offset'], va + patch['constant'] - (patch['rva'] + rip_end))
+            after = bytes(after)
+        else:
+            after = bytes.fromhex(patch['after'])
+        if len(after) != len(before):
+            raise ValueError('UI patch must preserve instruction-block length')
+        pos = offset(patch['rva'])
+        actual = bytes(data[pos:pos + len(before)])
+        accepted = [before]
+        if existing:
+            accepted.append(after)
+        if patch['rva'] in prior_patches:
+            previous = prior_patches[patch['rva']]
+            old_after = bytearray.fromhex(previous.get('after_template', previous.get('after', previous['before'])))
+            if 'constant' in previous:
+                struct.pack_into('<i', old_after, previous['disp_offset'], va + previous['constant'] - (previous['rva'] + previous.get('rip_end', len(old_after))))
+            accepted.append(bytes(old_after))
+        if actual not in accepted:
+            raise ValueError('Unsupported native game layout: ' + patch['name'])
+        edits.append((pos, after))
+    return edits
+
+
 def apply(source, profile=None):
     profile = profile or json.loads(PROFILE.read_text(encoding='utf-8'))
     data = bytearray(source)
@@ -67,35 +100,20 @@ def apply(source, profile=None):
             raise ValueError('No free PE section header for ASR UI constants')
 
     # Validate every instruction before modifying the output or extending it.
-    edits = []
     prior_patches = {p['rva']: p for p in prior['patches']} if prior else {}
-    for patch in profile['patches']:
-        before = bytes.fromhex(patch['before'])
-        if 'constant' in patch:
-            after = bytearray.fromhex(patch.get('after_template', patch['before']))
-            rip_end = patch.get('rip_end', len(before))
-            if not patch['disp_offset'] + 4 <= rip_end <= len(before):
-                raise ValueError('Invalid UI instruction address span')
-            struct.pack_into('<i', after, patch['disp_offset'], va + patch['constant'] - (patch['rva'] + rip_end))
-            after = bytes(after)
-        else:
-            after = bytes.fromhex(patch['after'])
-        if len(after) != len(before):
-            raise ValueError('UI patch must preserve instruction-block length')
-        pos = offset(patch['rva'])
-        actual = bytes(data[pos:pos + len(before)])
-        accepted = [before]
-        if existing:
-            accepted.append(after)
-        if patch['rva'] in prior_patches:
-            previous = prior_patches[patch['rva']]
-            old_after = bytearray.fromhex(previous.get('after_template', previous.get('after', previous['before'])))
-            if 'constant' in previous:
-                struct.pack_into('<i', old_after, previous['disp_offset'], va + previous['constant'] - (previous['rva'] + previous.get('rip_end', len(old_after))))
-            accepted.append(bytes(old_after))
-        if actual not in accepted:
-            raise ValueError('Unsupported native game layout: ' + patch['name'])
-        edits.append((pos, after))
+    # Other supported builds make the same edits at their own addresses.
+    layouts = [profile['patches']] + [
+        [dict(p, rva=rva, before=before) for p, (rva, before) in zip(profile['patches'], layout)]
+        for layout in profile.get('layouts', {}).values()]
+    failure = None
+    for patches in layouts:
+        try:
+            edits = plan(patches, data, offset, va, existing, prior_patches)
+            break
+        except ValueError as error:
+            failure = failure or error
+    else:
+        raise failure
 
     if not existing:
         size = align(len(payload), file_alignment)

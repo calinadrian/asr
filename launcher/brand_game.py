@@ -11,10 +11,40 @@ from pathlib import Path
 
 TITLE = b'Azeroth Survivors'
 BASE = 0x140000000
+# The same edits at each supported build's addresses: 0.120/0.121, then 0.124.0.
+LAYOUTS = (
+    dict(titles=(0x146184028, 0x146186d90, 0x1461b7868),
+         lengths=((0x14003fc2d, '48c7461811000000'), (0x140070efe, '48c7858001000011000000'),
+                  (0x1402451a7, '48c7476811000000'), (0x14024530c, '49c7456811000000')),
+         checks=((0x14024510f, '49837c056811'), (0x140245273, '48837c026811')),
+         compares=((0x14024511b, 0x140245142), (0x14024527f, 0x1402452a6)),
+         skips=((0x14030426f, 0x14030440a), (0x1403046ce, 0x1403048c2)),
+         credit=(0x1400e03c7, 0x1400e056c, ((0x1400e03c7, '488b9df0000000', None), (0x1400e0439, '440f101d', 4),
+                 (0x1400e051a, '448b35', 3), (0x1400e0528, '440f1025', 4), (0x1400e0538, 'f2440f102d', 5))),
+         icon=0x615694e),
+    dict(titles=(0x146210150, 0x146200f18, 0x1461f7160),
+         lengths=((0x1402c5a4d, '48c7461811000000'), (0x1402694de, '48c7858801000011000000'),
+                  (0x14016c8c7, '48c7476811000000'), (0x14016ca2c, '49c7456811000000')),
+         checks=((0x14016c82f, '49837c056811'), (0x14016c993, '48837c026811')),
+         compares=((0x14016c83b, 0x14016c862), (0x14016c99f, 0x14016c9c6)),
+         skips=((0x1402047ef, 0x14020498a), (0x140204c4e, 0x140204e42)),
+         credit=(0x140296505, 0x1402966ad, ((0x140296505, '488b9d70040000', None), (0x140296577, '440f101d', 4),
+                 (0x140296658, '448b35', 3), (0x140296666, '440f1025', 4), (0x140296676, 'f2440f102d', 5))),
+         icon=0x61bb4b0),
+)
 
 
 def apply(data, ico):
-    data = bytearray(data)
+    failure = None
+    for layout in LAYOUTS:
+        try:
+            return brand(bytearray(data), ico, layout)
+        except ValueError as error:
+            failure = failure or error
+    raise failure
+
+
+def brand(data, ico, layout):
     pe = struct.unpack_from('<I', data, 0x3c)[0]
     sections = []
     for index in range(struct.unpack_from('<H', data, pe + 6)[0]):
@@ -38,28 +68,20 @@ def apply(data, ico):
         data[pos:pos + len(before)] = after
 
     # Fallback title, presence text and both native window title constructors.
-    for address in (0x146184028, 0x146186d90, 0x1461b7868):
+    for address in layout['titles']:
         patch(address, TITLE, b'ASR' + b' ' * 14)
     # Keep the allocation capacity (17) but expose exactly three characters.
-    for address, before in (
-        (0x14003fc2d, '48c7461811000000'),
-        (0x140070efe, '48c7858001000011000000'),
-        (0x1402451a7, '48c7476811000000'),
-        (0x14024530c, '49c7456811000000'),
-    ):
+    for address, before in layout['lengths']:
         original = bytes.fromhex(before)
         patch(address, original, original[:-4] + struct.pack('<I', 3))
 
     # The window system enforces its title each frame. Compare only the three
     # actual bytes, without reading beyond a three-byte string allocation.
-    for address, before in (
-        (0x14024510f, '49837c056811'),
-        (0x140245273, '48837c026811'),
-    ):
+    for address, before in layout['checks']:
         original = bytes.fromhex(before)
         patch(address, original, original[:-1] + b'\x03')
     comparison = bytes.fromhex('f30f6f00660f74c60fb64010660f6ec8660f74cf660fdbc8660fd7c13dffff0000')
-    for start, mismatch in ((0x14024511b, 0x140245142), (0x14024527f, 0x1402452a6)):
+    for start, mismatch in layout['compares']:
         # cmp word [rax], 'AS'; jne mismatch; cmp byte [rax+2], 'R'
         # The original following JE still branches back to the next window.
         code = bytes.fromhex('6681384153')
@@ -67,6 +89,29 @@ def apply(data, ico):
         code += bytes.fromhex('80780252')
         code += b'\x90' * (len(comparison) - len(code))
         patch(start, comparison, code)
+
+    # Upstream's support and Discord buttons: jump over their creation.
+    for site, resume in layout['skips']:
+        pos = offset(site)
+        jump = b'\xe9' + struct.pack('<i', resume - site - 5)
+        if data[pos:pos + 5] != jump:
+            if data[pos] != 0xe8:
+                raise ValueError(f'Unsupported game layout at {site:#x}')
+            data[pos:pos + 5] = jump
+    # The "Made by" credit: skip its creation, keeping the registers the code after it reads.
+    start, resume, kept = layout['credit']
+    payload = bytearray()
+    for origin, prefix, disp in kept:
+        pos = offset(origin)
+        code = bytearray.fromhex(prefix) + (data[pos + disp:pos + disp + 4] if disp else b'')
+        if data[pos:pos + len(prefix) // 2] != bytes.fromhex(prefix) or (origin == start) != (not payload):
+            raise ValueError(f'Unsupported game layout at {origin:#x}')
+        if disp:
+            target = origin + len(code) + struct.unpack_from('<i', code, disp)[0]
+            struct.pack_into('<i', code, disp, target - (start + len(payload) + len(code)))
+        payload += code
+    payload += b'\xe9' + struct.pack('<i', resume - (start + len(payload)) - 5)
+    data[offset(start):offset(start) + len(payload)] = payload
 
     # Translations are fixed-size embedded JSON. Put padding outside the value,
     # so every language renders and centers exactly "ASR".
@@ -82,7 +127,7 @@ def apply(data, ico):
     png = ico[pos:pos + size]
     if png[:8] != b'\x89PNG\r\n\x1a\n' or struct.unpack_from('>II', png, 16) != (256, 256):
         raise ValueError('Expected a 256px PNG as the first ASR icon entry')
-    location, length = 0x615694e, 142890
+    location, length = layout['icon'], 142890
     if data[location:location + 8] != png[:8]:
         raise ValueError('Unsupported runtime icon location')
     # A valid ancillary chunk fills the reserved slot without shifting pointers.

@@ -6,6 +6,7 @@ so a new version must keep the old one's length (0.120.5 -> 0.120.6, not 0.121.1
 """
 import argparse
 import re
+import struct
 import subprocess
 from pathlib import Path
 
@@ -13,12 +14,30 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def current(exe_bytes):
-    """The (build code, version) pair of the corner label: 8 hex characters followed by the version."""
-    found = set(re.findall(rb'(?<![0-9a-f])([0-9a-f]{8})(\d+\.\d+\.\d+)(?=\x00)', exe_bytes))
+    """The (build code, version, code offset) of the corner label.
+
+    The label's data is the 8 hex characters, a reference to the version string and the "v{} ({})"
+    format; up to 0.123 the version string itself directly follows the code.
+    """
+    found = list(re.finditer(rb'(?<![0-9a-f])([0-9a-f]{8})(?:\d+\.\d+\.\d+\x00)?(.{8})(.)\x00{7}\x01v\xc0\x02 \(\xc0\x01\)', exe_bytes, re.S))
     if len(found) != 1:
         raise ValueError(f'Could not find a single version label in the executable (found {len(found)})')
-    code, version = found.pop()
-    return code.decode(), version.decode()
+    match = found[0]
+    version = read_string(exe_bytes, struct.unpack('<Q', match[2])[0], match[3][0])
+    if not re.fullmatch(rb'\d+\.\d+\.\d+', version):
+        raise ValueError('The version label does not reference a version')
+    return match[1].decode(), version.decode(), match.start(1)
+
+
+def read_string(data, address, length):
+    pe = struct.unpack_from('<I', data, 0x3c)[0]
+    table = pe + 24 + struct.unpack_from('<H', data, pe + 20)[0]
+    rva = address - struct.unpack_from('<Q', data, pe + 48)[0]
+    for index in range(struct.unpack_from('<H', data, pe + 6)[0]):
+        _, va, size, raw = struct.unpack_from('<IIII', data, table + 40 * index + 8)
+        if va <= rva < va + size:
+            return data[raw + rva - va:raw + rva - va + length]
+    raise ValueError('The version label references an unknown address')
 
 
 # The game updates itself only when its file is named AzerothSurvivors (it compares the lowercased name with a
@@ -46,16 +65,13 @@ def stamp(source, output, version, build=None):
     data = addon_manager_patch.apply(data)
     import addon_refresh_patch
     data = addon_refresh_patch.apply(data)
-    old_code, old_version = current(data)
+    old_code, old_version, at = current(data)
     build = build or subprocess.run(['git', 'rev-parse', '--short=8', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     if len(version) != len(old_version) or not re.fullmatch(r'\d+\.\d+\.\d+', version):
         raise ValueError(f'The new version must have the same length as {old_version}')
     if not re.fullmatch(r'[0-9a-f]{8}', build):
         raise ValueError('The build code must be 8 lowercase hex characters')
-    label = (old_code + old_version).encode()
-    if data.count(label) != 1:
-        raise ValueError('The version label is not unique in the executable')
-    data = data.replace(label, (build + old_version).encode())
+    data = data[:at] + build.encode() + data[at + 8:]
     data = data.replace(old_version.encode(), version.encode())
     Path(output).write_bytes(data)
     print(f'{source}: v{old_version} ({old_code}) -> {output}: v{version} ({build})')

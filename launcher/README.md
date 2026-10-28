@@ -29,7 +29,7 @@ launcher\set_game_icon.ps1 -Exe path\to\AzerothSurvivors.exe
 
 `publish-game` stamps the executable it uploads (`launcher/stamp_game.py`):
 
-It also applies ASR branding (`launcher/brand_game.py`): the exact window title, in-game name in all 12 languages, runtime window/taskbar icon, and Windows executable icon. Branding checks the supported native layout and refuses unknown builds. Reapplying it is safe.
+It also applies ASR branding (`launcher/brand_game.py`): the exact window title, in-game name in all 12 languages, runtime window/taskbar icon, and Windows executable icon. Branding checks the supported native layouts (0.120/0.121 and 0.124.0) and refuses unknown builds; zone cards and the addon refresh bridge support the same two. Reapplying it is safe.
 
 
 - the version you give, which the game's updater and the co-op lobby read;
@@ -42,7 +42,7 @@ The version must keep the length of the current one (`0.120.6`, not `0.121.10`),
 
 Players who installed with `ASR.exe` 0.1.8 or earlier have a launcher that starts the game with the same settings and keeps a helper running that forwards co-op through the certificate it pins on TCP 47770. It updates itself from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): `releases/latest/download/latest-envelope.json`, then `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. Each release is checked against the release-verification public key the launcher embeds.
 
-The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7, 0.120.8, 0.120.9 and 0.121.0 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
+The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7, 0.120.8, 0.120.9, 0.121.0, 0.121.1 and 0.124.0 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
 
 ## Publish an old-launcher update
 
@@ -112,7 +112,7 @@ To offer an addon, place its folder and matching `<Folder>.toc` under `launcher/
 
 The manager and background updater share `AddonStore.cs`. Startup updates only catalog addons already installed with an ASR ownership marker. New entries require an explicit Install, removed addons stay removed through `benilla-config/asr-addons.json`, and local copies are not silently replaced. Extraction rejects traversal, junctions/symlinks, duplicate paths, executable/command-script files, more than 4,096 entries, compressed files over 16 MB, and expansion beyond 64 MB. Replacements are staged outside the game's addon index and roll back on installation failure.
 
-`addon_manager_patch.py` preserves the native process-launch function and its unwind metadata. It redirects one verified string reference from Explorer to `ASRAddOn.exe` and relabels the folder button in all 14 embedded languages. It supports the inspected 0.120/0.121 layout and upstream 0.123.0 handler, rejects unknown function hashes, and is idempotent. `stamp_game.py` applies it to published games; the existing branding/zone-card patches have their own, narrower build support. The installer and game-update helper install `ASRAddOn.exe` as a copy of ASR-Setup, independently of a running Play ASR relay. The update helper also supplies it to portable and legacy-launcher games without changing their shortcuts or adding an uninstall registration.
+`addon_manager_patch.py` preserves the native process-launch function and its unwind metadata. It redirects one verified string reference from Explorer to `ASRAddOn.exe` and relabels the folder button in all 14 embedded languages. It supports the inspected 0.120/0.121 layout and the upstream 0.123.0 and 0.124.0 handlers, rejects unknown function hashes, and is idempotent. `stamp_game.py` applies it to published games; the existing branding/zone-card patches have their own, narrower build support. The installer and game-update helper install `ASRAddOn.exe` as a copy of ASR-Setup, independently of a running Play ASR relay. The update helper also supplies it to portable and legacy-launcher games without changing their shortcuts or adding an uninstall registration.
 
 Run `python -m unittest discover -s launcher -p test_addon_manager.py -v` for native-patch checks and the Windows compiled-backend contracts. Tests use disposable folders and a fixture catalog; they do not publish or change player files.
 

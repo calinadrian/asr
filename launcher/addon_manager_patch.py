@@ -15,6 +15,7 @@ PAYLOAD = b'ASR addon manager v1\0'.ljust(32, b'\0') + b'ASRAddOn\0'
 PROFILES = (
     (0x3af50, 0x3b379, 0x3b0ad, '488d156c271406', 'c66cf6041f9c84e6833988167ee97d8426cf71c65e73f0482ffc677e02333370'),
     (0x2210f0, 0x221519, 0x22124d, '488d151c3cfe05', '958fdc0b8773bc7f5d5b84927ccbe946919c5e48d773da0faaae9ac1a5c33c1f'),
+    (0x2c0d70, 0x2c1199, 0x2c0ecd, '488d156c8af405', 'c5f1514d5c9424cdd1a82e5b99062222fd085cc60a1d25e2b5ecaf085a5228b8'),
 )
 LABELS = dict(zip([
     'Open AddOns Folder', 'Otwórz folder dodatków', 'Otevřít složku doplňků', 'AddOn-Ordner öffnen',

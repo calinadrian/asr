@@ -1,4 +1,4 @@
-"""Independent desktop lobby for the protocol-3 binary client (games 0.120.1 and 0.120.4).
+"""Independent desktop lobby for the protocol-3 binary client (games 0.120.1 to 0.124.0).
 
 Each WebSocket owns its membership. Gameplay stays on the player host; payloads
 can travel only between that host and the guests of the same four-player room.
@@ -12,7 +12,7 @@ import time
 from native_websocket import ProtocolError, WebSocket
 
 # Each verified with two real engines; rooms only list and admit their own version.
-SUPPORTED_VERSIONS = ('0.120.1', '0.120.4', '0.120.5', '0.120.6', '0.120.7', '0.120.8', '0.120.9', '0.121.0')
+SUPPORTED_VERSIONS = ('0.120.1', '0.120.4', '0.120.5', '0.120.6', '0.120.7', '0.120.8', '0.120.9', '0.121.0', '0.121.1', '0.124.0')
 
 # Games connected without Play ASR see this first in the public list: their next in-game update (or running
 # ASR-Setup again) brings Play ASR.
@@ -80,16 +80,19 @@ class Hero:
     accepting: bool
     classes: bytes
     maximum: int
+    difficulty: int = 0
 
     @classmethod
     def read(cls, reader):
         name, class_id, zone = reader.string(96), reader.byte(), reader.string(64)
         accepting, classes, maximum = reader.byte(), reader.blob(5), reader.byte()
+        # 0.124.0 appends the run's difficulty (0 Normal, then Heroic I-V).
+        difficulty = reader.byte() if reader.offset < len(reader.data) else 0
         valid_classes = (1, 2, 3, 4, 5, 7, 8, 9, 11)
         if (class_id not in valid_classes or accepting not in (0, 1)
                 or any(value not in valid_classes for value in classes)):
             raise ProtocolError('Invalid hero')
-        return cls(name, class_id, zone, bool(accepting), classes, min(4, max(1, maximum)))
+        return cls(name, class_id, zone, bool(accepting), classes, min(4, max(1, maximum)), difficulty)
 
 
 @dataclass(eq=False)
