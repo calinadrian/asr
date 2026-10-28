@@ -104,13 +104,17 @@ def build_setup(output):
 def prepare(exe, version, notes, folder, build=None):
     """Write game.json, latest.json and their parts into folder."""
     import stamp_game
+    # Windows shell resources are separate from the game's embedded runtime icon. Replacing them resizes
+    # .rsrc and moves every later section, so it happens before our patches add sections that code refers to.
+    iconed = folder / 'icon.exe'
+    iconed.write_bytes(Path(exe).read_bytes())
+    subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+                    str(ROOT / 'launcher/set_game_icon.ps1'), '-Exe', str(iconed),
+                    '-Ico', str(ROOT / 'launcher/asr.ico')], check=True)
     # The game reports this exact version, so its updater does not offer the same build again.
     stamped = folder / 'AzerothSurvivors.exe'
-    stamp_game.stamp(exe, stamped, version, build)
-    # Windows shell resources are separate from the game's embedded runtime icon.
-    subprocess.run(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
-                    str(ROOT / 'launcher/set_game_icon.ps1'), '-Exe', str(stamped),
-                    '-Ico', str(ROOT / 'launcher/asr.ico')], check=True)
+    stamp_game.stamp(iconed, stamped, version, build)
+    iconed.unlink()
     entry = pack(stamped, f'game-{version}', folder)
     stamped.unlink()
     (folder / 'game.json').write_text(json.dumps(dict(version=version, notes=notes, **entry), indent=1))
