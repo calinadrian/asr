@@ -26,6 +26,11 @@ function methods:GetWidth() return self.width end
 function methods:GetHeight() return self.height end
 function methods:SetWidth(value) self.width=value end
 function methods:SetHeight(value) self.height=value end
+function methods:SetAlpha(value) self.alpha=value end
+function methods:SetFontString(value) self.font=value end
+function methods:SetTextColor(...) end
+function methods:CreateTexture() local t=frame(); self.textures=self.textures or {}; table.insert(self.textures,t); return t end
+function methods:SetTexture(...) end
 function methods:GetEffectiveScale() return self.scale end
 function methods:GetCenter() return self.x,self.y end
 function methods:GetFrameLevel() return 1 end
@@ -44,7 +49,7 @@ function methods:SetAllPoints(...) end
 function methods:SetFrameLevel(...) end
 function methods:EnableMouse(...) end
 function methods:RegisterForDrag(...) end
-function methods:SetBackdrop(...) end
+function methods:SetBackdrop(value) self.backdrop=value end
 function methods:SetBackdropColor(...) end
 function methods:SetBackdropBorderColor(...) end
 function methods:CreateFontString() return frame() end
@@ -107,14 +112,15 @@ assert(PlayerFrame.points[1][1]=='TOPLEFT' and ASR_PlayerMoverDB.x==nil)
 
     def test_visible_toggle_moves_and_locks_without_chat(self):
         self.lua.execute('''enter()
-assert(ASR_PlayerMoverToggle.shown and ASR_PlayerMoverToggle.text=='Move')
+assert(ASR_PlayerMoverToggle.shown and ASR_PlayerMoverToggle.width==22)
+assert(ASR_PlayerMoverToggle.text=='')
 assert(not ASR_PlayerMoverReset.shown)
 ASR_PlayerMoverToggle.scripts.OnClick()
 assert(ASR_PlayerMoverHandle.shown and ASR_PlayerMoverReset.shown)
 assert(ASR_PlayerMoverToggle.text=='Done')
 drag(500,400); ASR_PlayerMoverToggle.scripts.OnClick()
 assert(not ASR_PlayerMoverHandle.shown and not ASR_PlayerMoverReset.shown)
-assert(ASR_PlayerMoverToggle.text=='Move' and ASR_PlayerMoverDB.x==0.5)
+assert(ASR_PlayerMoverToggle.text=='' and ASR_PlayerMoverDB.x==0.5)
 assert(PlayerFrame.scripts.OnClick==nativeClick)
 ''')
 
@@ -122,9 +128,23 @@ assert(PlayerFrame.scripts.OnClick==nativeClick)
         self.lua.execute('''enter(); ASR_PlayerMoverToggle.scripts.OnClick()
 drag(500,400); ASR_PlayerMoverReset.scripts.OnClick()
 assert(ASR_PlayerMoverDB.x==nil and PlayerFrame.points[1][1]=='TOPLEFT')
-assert(ASR_PlayerMoverToggle.text=='Move' and not ASR_PlayerMoverHandle.shown)
+assert(ASR_PlayerMoverToggle.text=='' and not ASR_PlayerMoverHandle.shown)
 ASR_PlayerMoverToggle.scripts.OnClick(); enter()
-assert(ASR_PlayerMoverToggle.text=='Move' and not ASR_PlayerMoverReset.shown)
+assert(ASR_PlayerMoverToggle.text=='' and not ASR_PlayerMoverReset.shown)
+''')
+
+    def test_grip_hover_and_unobscured_edit_state(self):
+        self.lua.execute('''enter()
+assert(not ASR_PlayerMoverToolbar.shown)
+assert(#ASR_PlayerMoverToggle.textures==6 and ASR_PlayerMoverToggle.alpha==0.6)
+ASR_PlayerMoverToggle.scripts.OnEnter(); assert(ASR_PlayerMoverToggle.alpha==1)
+ASR_PlayerMoverToggle.scripts.OnLeave(); assert(ASR_PlayerMoverToggle.alpha==0.6)
+ASR_PlayerMoverToggle.scripts.OnClick()
+assert(ASR_PlayerMoverToolbar.shown and ASR_PlayerMoverHandle.backdrop.bgFile==nil)
+for _,dot in ipairs(ASR_PlayerMoverToggle.textures) do assert(not dot.shown) end
+ASR_PlayerMoverToggle.scripts.OnClick()
+assert(not ASR_PlayerMoverToolbar.shown and ASR_PlayerMoverToggle.width==22)
+for _,dot in ipairs(ASR_PlayerMoverToggle.textures) do assert(dot.shown) end
 ''')
 
 

@@ -1,5 +1,6 @@
 -- An edit-mode overlay leaves the native player frame's scripts untouched.
-local player, handle, original, toggle, reset;
+local player, handle, original, toggle, reset, toolbar;
+local grip = {};
 local unlocked, moving = false, false;
 
 local function Say(text)
@@ -46,10 +47,15 @@ local function Edit(value)
     Stop();
     unlocked = value;
     if ( unlocked ) then
-        handle:Show(); reset:Show(); toggle:SetText("Done");
+        handle:Show(); toolbar:Show(); reset:Show();
+        toggle:SetWidth(48); toggle:SetText("Done"); toggle:SetAlpha(1);
+        for i = 1, table.getn(grip) do grip[i]:Hide(); end
     else
-        handle:Hide(); reset:Hide(); toggle:SetText("Move");
+        handle:Hide(); toolbar:Hide(); reset:Hide();
+        toggle:SetWidth(22); toggle:SetText(""); toggle:SetAlpha(0.6);
+        for i = 1, table.getn(grip) do grip[i]:Show(); end
     end
+    if ( GameTooltip ) then GameTooltip:Hide(); end
 end
 
 local function Reset()
@@ -74,31 +80,68 @@ local function Initialize()
     handle:SetFrameLevel(player:GetFrameLevel() + 20);
     handle:EnableMouse(true);
     handle:RegisterForDrag("LeftButton");
-    handle:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 });
-    handle:SetBackdropColor(0, 0, 0, 0.7);
-    handle:SetBackdropBorderColor(1, 0.82, 0.3, 1);
-    local label = handle:CreateFontString(nil, "OVERLAY", "GameFontNormal");
-    label:SetPoint("CENTER", handle, "CENTER", 0, 0);
-    label:SetText("Drag to move\nClick Done to lock");
+    -- Only an outline: the portrait, name and live bars stay unobscured.
+    handle:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 });
+    handle:SetBackdropBorderColor(0.85, 0.72, 0.45, 0.45);
     handle:SetScript("OnDragStart", function()
         if ( unlocked ) then player:StartMoving(); moving = true; end
     end);
     handle:SetScript("OnDragStop", Stop);
     handle:SetScript("OnHide", Stop);
     handle:Hide();
-    -- Small, always-visible entry point; controls sit above the drag overlay.
-    toggle = CreateFrame("Button", "ASR_PlayerMoverToggle", player, "UIPanelButtonTemplate");
-    toggle:SetWidth(56); toggle:SetHeight(22);
-    toggle:SetPoint("BOTTOMRIGHT", player, "BOTTOMRIGHT", -8, 2);
+    toolbar = CreateFrame("Frame", "ASR_PlayerMoverToolbar", player);
+    toolbar:SetWidth(108); toolbar:SetHeight(24);
+    toolbar:SetPoint("BOTTOMRIGHT", player, "BOTTOMRIGHT", -6, 2);
+    toolbar:SetFrameLevel(handle:GetFrameLevel() + 1);
+    toolbar:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 } });
+    toolbar:SetBackdropColor(0.055, 0.05, 0.04, 0.95);
+    toolbar:SetBackdropBorderColor(0.5, 0.46, 0.36, 0.85);
+    toolbar:Hide();
+    -- A quiet six-dot grip rather than a permanent action button.
+    toggle = CreateFrame("Button", "ASR_PlayerMoverToggle", player);
+    toggle:SetWidth(22); toggle:SetHeight(22);
+    toggle:SetPoint("BOTTOMRIGHT", player, "BOTTOMRIGHT", -10, 3);
     toggle:SetFrameLevel(handle:GetFrameLevel() + 1);
-    toggle:SetText("Move");
+    local doneText = toggle:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+    doneText:SetPoint("CENTER", toggle, "CENTER", 0, 0);
+    toggle:SetFontString(doneText);
+    for row = 0, 2 do
+        for column = 0, 1 do
+            local dot = toggle:CreateTexture(nil, "ARTWORK");
+            dot:SetTexture(0.85, 0.78, 0.6, 1);
+            dot:SetWidth(2); dot:SetHeight(2);
+            dot:SetPoint("CENTER", toggle, "CENTER", -3 + column * 6, 5 - row * 5);
+            table.insert(grip, dot);
+        end
+    end
+    toggle:SetAlpha(0.6);
     toggle:SetScript("OnClick", function() Edit(not unlocked); end);
-    reset = CreateFrame("Button", "ASR_PlayerMoverReset", player, "UIPanelButtonTemplate");
-    reset:SetWidth(56); reset:SetHeight(22);
+    toggle:SetScript("OnEnter", function()
+        toggle:SetAlpha(1);
+        if ( GameTooltip ) then
+            GameTooltip:SetOwner(toggle, "ANCHOR_TOPLEFT");
+            GameTooltip:SetText(unlocked and "Save position" or "Move character frame", 1, 0.82, 0.3);
+            GameTooltip:AddLine(unlocked and "Click Done to lock the frame." or "Click the grip, then drag the frame.", 1, 1, 1);
+            GameTooltip:Show();
+        end
+    end);
+    toggle:SetScript("OnLeave", function()
+        if ( not unlocked ) then toggle:SetAlpha(0.6); end
+        if ( GameTooltip ) then GameTooltip:Hide(); end
+    end);
+    reset = CreateFrame("Button", "ASR_PlayerMoverReset", toolbar);
+    reset:SetWidth(48); reset:SetHeight(22);
     reset:SetPoint("RIGHT", toggle, "LEFT", -4, 0);
     reset:SetFrameLevel(toggle:GetFrameLevel());
+    local resetText = reset:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+    resetText:SetPoint("CENTER", reset, "CENTER", 0, 0);
+    resetText:SetTextColor(0.75, 0.71, 0.62);
+    reset:SetFontString(resetText);
     reset:SetText("Reset");
+    reset:SetScript("OnEnter", function() resetText:SetTextColor(1, 0.82, 0.3); end);
+    reset:SetScript("OnLeave", function() resetText:SetTextColor(0.75, 0.71, 0.62); end);
     reset:SetScript("OnClick", Reset);
     reset:Hide();
     local db = Settings();

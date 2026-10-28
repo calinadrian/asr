@@ -1,6 +1,6 @@
 ## Interface: 11200
 ## Title: ASR Player Frame Mover
-## Notes: Click Move beside your character frame, drag it, then click Done. Remembers your position.
-## Version: 1.1.0
+## Notes: Click the small grip on your character frame to reposition it. Click Done to save.
+## Version: 1.2.0
 ## SavedVariables: ASR_PlayerMoverDB
 PlayerMover.lua
