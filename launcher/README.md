@@ -97,6 +97,20 @@ The table and models are read from the game's own Data folder at publish time, s
 
 `publish-data` builds and includes it. To publish only the lighting while retaining all other data entries, run `.\asr publish-lighting path\to\Data`. To try it locally, build it with `tools\python\python.exe launcher\zone_light.py path\to\Data --out path\to\Data\patch-Y.MPQ`; delete that file to go back to the original lighting.
 
+## Durotar
+
+Durotar is a thirteenth zone and a second starter beside Elwynn Forest. A fresh character may enter either, and a victory in either opens Duskwood; completing one does not complete the other. Its run follows Elwynn's structure, difficulty and rewards, with Durotar terrain, twelve Durotar enemies and five bosses (theme: The Burning Blade). See `docs/durotar-test.md`.
+
+`publish-game` applies `launcher/durotar_patch.py` with its reviewed `native-durotar.json`, after every other executable patch because it owns the base-relocation directory. It supports the 0.124 layout only. The twelve original zone records, Elwynn's enemy and boss tables and the zone tier table are copied into a new `.asrzone` PE section with Durotar appended, and every validated code reference is pointed at the copies. Durotar keeps zone index 12 for its own records, completion and difficulty progress; starter validation, selection, picker availability, victory unlocks and reward/level scaling treat it as Elwynn's rank. Every edit checks its original bytes, unknown layouts are refused, and reapplying verifies the existing section.
+
+The zone's terrain, creatures and card come from a vanilla 1.12.1 client, which is not in the repository. `launcher/durotar_assets.py` builds `patch-X.MPQ` with only the files the game's Data lacks, including baked NPC textures. Publish it before the game, which checks that the live data feed has it:
+
+```powershell
+.\asr publish-durotar path\to\vanilla\Data path\to\Data
+```
+
+To try it locally, build it with `tools\python\python.exe launcher\durotar_assets.py path\to\vanilla\Data --installed path\to\Data --out path\to\Data\patch-X.MPQ` and patch a copy of the game with `tools\python\python.exe launcher\durotar_patch.py ASR.exe --out ASR-durotar.exe`. Run `python -m unittest discover -s launcher -p test_durotar.py -v` for the patch, asset and release checks.
+
 ## ASR addons
 
 `ASR_Nameplates` is an independent compact nameplate addon: 72 x 6 health bars,

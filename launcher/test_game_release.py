@@ -127,7 +127,7 @@ class PhotoPublishTests(unittest.TestCase):
             stdout = '  origin/main\n'
 
         with patch.object(game_release.subprocess, 'run', lambda *a, **k: Pushed()), \
-                patch.object(game_release, 'require_zone_photos', lambda tag, folder: None), \
+                patch.object(game_release, 'require_live_data', lambda tag, folder: None), \
                 patch.object(game_release, 'prepare', lambda exe, version, notes, folder: None), \
                 patch.object(game_release, 'ensure_release', lambda tag: None), \
                 patch.object(game_release, 'describe', lambda *a: None), \
@@ -144,7 +144,7 @@ class PhotoPublishTests(unittest.TestCase):
 
             with patch.object(game_release.subprocess, 'run', download):
                 with self.assertRaisesRegex(ValueError, 'Publish data first'):
-                    game_release.require_zone_photos('game', folder)
+                    game_release.require_live_data('game', folder)
 
 
 class AddonPublishTests(unittest.TestCase):

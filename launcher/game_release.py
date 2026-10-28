@@ -9,7 +9,7 @@ signature, so only ship files you have tested.
                 adds Play ASR to installations made before it existed
   game.json     the game executable, with the same version, read by ASR-Setup and the update helper
   patches.json  data patches the game keeps current itself (WOW_ROGUE_DATA_URL), including ASR's own
-                patch-Z.MPQ (zone photos) and patch-Y.MPQ (brighter zone lighting)
+                patch-Z.MPQ (zone photos), patch-Y.MPQ (brighter zone lighting) and patch-X.MPQ (Durotar)
   base.json     the base data a fresh install needs, read only by ASR-Setup
 """
 import argparse
@@ -78,15 +78,18 @@ def upload(tag, folder, manifests):
         subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber', str(folder / manifest)], check=True)
 
 
-def require_zone_photos(tag, folder):
-    """Never ship a game whose zone-photo assets are missing from the data feed."""
+def require_live_data(tag, folder):
+    """Never ship a game whose zone-photo or Durotar assets are missing from the data feed."""
     from photo_archive import build_photos
+    from durotar_assets import ARCHIVE
     expected = hashlib.sha256(build_photos(ROOT / 'launcher/zone-photos')).hexdigest()
     subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
                     '--pattern', 'patches.json', '--dir', str(folder), '--clobber'], check=True)
     patches = json.loads((folder / 'patches.json').read_text(encoding='utf-8-sig')).get('patches', [])
     if not any(p.get('name') == 'patch-Z.MPQ' and p.get('sha256') == expected for p in patches):
         raise ValueError('Publish data first with asr publish-data DATA-FOLDER: the live data feed needs the matching zone-photo archive')
+    if not any(p.get('name', '').lower() == ARCHIVE.lower() for p in patches):
+        raise ValueError(f'Publish Durotar first with --durotar VANILLA-DATA --data DATA: the live data feed needs {ARCHIVE}')
     (folder / 'patches.json').unlink()
 
 
@@ -135,7 +138,7 @@ def publish(exe, version, notes, tag=GAME_TAG):
         raise ValueError('Push your commits first: the game shows the current commit in its version label')
     with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
-        require_zone_photos(tag, folder)
+        require_live_data(tag, folder)
         prepare(exe, version, notes, folder)
         ensure_release(tag)
         # game.json before latest.json: the helper a game downloads must find the game it brings in.
@@ -184,6 +187,27 @@ def publish_lighting(data, tag=GAME_TAG):
         path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
         upload(tag, folder, ['patches.json'])
     print(f'Published zone lighting; existing game data retained on {tag}')
+
+
+def publish_durotar(source, data, tag=GAME_TAG):
+    """Add Durotar's archive, built from a vanilla 1.12.1 Data folder against data, without republishing other data."""
+    from durotar_assets import ARCHIVE, prepare
+    with tempfile.TemporaryDirectory(prefix='asr-durotar-') as scratch:
+        folder = Path(scratch)
+        subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
+                        '--pattern', 'patches.json', '--dir', str(folder)], check=True)
+        path = folder / 'patches.json'
+        manifest = json.loads(path.read_text(encoding='utf-8-sig'))
+        if not isinstance(manifest.get('patches'), list) or not manifest['patches']:
+            raise ValueError('Publish the base game data before adding Durotar')
+        archive = folder / ARCHIVE
+        archive.write_bytes(prepare(source, data)[0])
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        entry = dict(name=ARCHIVE, **pack(archive, f'data-{archive.stem}-{digest[:16]}', folder))
+        manifest['patches'] = [p for p in manifest['patches'] if p.get('name', '').lower() != ARCHIVE.lower()] + [entry]
+        path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
+        upload(tag, folder, ['patches.json'])
+    print(f'Published Durotar; existing game data retained on {tag}')
 
 
 def pack_addons(folder):
@@ -277,6 +301,7 @@ if __name__ == '__main__':
     parser.add_argument('--zone-photos', action='store_true', help='publish only the zone-photo data update')
     parser.add_argument('--data', help='a game Data folder to publish instead of an executable')
     parser.add_argument('--lighting', action='store_true', help='with --data, publish only the zone-lighting update built from it')
+    parser.add_argument('--durotar', metavar='VANILLA-DATA', help="with --data, publish only Durotar's archive, built from a vanilla 1.12.1 Data folder")
     parser.add_argument('--addons', action='store_true', help="publish ASR's addons as zips on the release")
     parser.add_argument('--tag', default=GAME_TAG)
     parser.add_argument('--describe', action='store_true', help='only retitle the release and rewrite its notes for --version')
@@ -289,6 +314,8 @@ if __name__ == '__main__':
         publish_addons(args.tag)
     elif args.lighting and args.data:
         publish_lighting(args.data, args.tag)
+    elif args.durotar and args.data:
+        publish_durotar(args.durotar, args.data, args.tag)
     elif args.data:
         publish_data(args.data, args.tag)
     elif args.exe and args.version:
