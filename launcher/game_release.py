@@ -97,7 +97,8 @@ def build_setup(output):
                     f'/win32icon:{ROOT / "launcher/asr.ico"}', '/reference:System.Windows.Forms.dll',
                     '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll',
                     '/reference:System.IO.Compression.dll', str(ROOT / 'launcher/Setup.cs'),
-                    str(ROOT / 'launcher/Relay.cs')], check=True)
+                    str(ROOT / 'launcher/Relay.cs'), str(ROOT / 'launcher/AddonStore.cs'),
+                    str(ROOT / 'launcher/AddonManager.cs'), str(ROOT / 'launcher/GameUi.cs')], check=True)
 
 
 def prepare(exe, version, notes, folder, build=None):
@@ -196,17 +197,40 @@ def pack_addons(folder):
 
 
 def addons_manifest(zips):
-    """addons.json: what Play ASR installs into the game's AddOns folder (Game.SyncAddons)."""
-    return dict(addons=[dict(name=z.stem, url=z.name, size=z.stat().st_size,
-                             sha256=hashlib.sha256(z.read_bytes()).hexdigest()) for z in zips])
+    """addons.json: verified downloads and descriptions for the in-game addon manager."""
+    addons = []
+    for z in zips:
+        entry = dict(name=z.stem, url=z.name, size=z.stat().st_size,
+                     sha256=hashlib.sha256(z.read_bytes()).hexdigest())
+        with zipfile.ZipFile(z) as archive:
+            toc = archive.read(f'{z.stem}/{z.stem}.toc').decode('utf-8-sig')
+        metadata = dict(re.findall(r'^##\s*(Title|Notes|Version):\s*(.*?)\s*$', toc, re.MULTILINE | re.IGNORECASE))
+        for key, value in metadata.items():
+            target = {'title': 'title', 'notes': 'description', 'version': 'version'}[key.lower()]
+            entry[target] = value[:240 if target == 'description' else 120]
+        addons.append(entry)
+    return dict(addons=addons)
+
+
+def prepare_addons(folder):
+    """Keep old catalog downloads valid while new catalog metadata propagates."""
+    zips = pack_addons(folder)
+    manifest = addons_manifest(zips)
+    published = []
+    for archive, entry in zip(zips, manifest['addons']):
+        immutable = archive.with_name(f"{entry['name']}-{entry['sha256'][:16]}.zip")
+        archive.rename(immutable)
+        entry['url'] = immutable.name
+        published.append(immutable)
+    return published, manifest
 
 
 def publish_addons(tag=GAME_TAG):
-    """Upload ASR's addons as zips, then addons.json, which Play ASR reads at every start."""
+    """Upload addon zips, then the catalog players browse from Options > AddOns."""
     with tempfile.TemporaryDirectory(prefix='asr-addons-') as scratch:
         folder = Path(scratch)
-        zips = pack_addons(folder)
-        (folder / 'addons.json').write_text(json.dumps(addons_manifest(zips), indent=1))
+        zips, manifest = prepare_addons(folder)
+        (folder / 'addons.json').write_text(json.dumps(manifest, indent=1))
         ensure_release(tag)
         # Zips first, the manifest last: nobody sees a manifest whose zips are missing.
         subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber'] + [str(z) for z in zips], check=True)

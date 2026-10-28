@@ -163,7 +163,18 @@ class AddonPublishTests(unittest.TestCase):
             entry = next(a for a in game_release.addons_manifest(zips)['addons'] if a['name'] == 'ASR_HUD')
             data = (Path(scratch) / 'ASR_HUD.zip').read_bytes()
             self.assertEqual(entry, dict(name='ASR_HUD', url='ASR_HUD.zip', size=len(data),
-                                         sha256=hashlib.sha256(data).hexdigest()))
+                                         sha256=hashlib.sha256(data).hexdigest(), title='ASR HUD',
+                                         description="Shows the run's chests on the minimap and the bosses' health."))
+
+    def test_published_catalog_uses_immutable_archive_urls(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            zips, manifest = game_release.prepare_addons(Path(scratch))
+            for archive, entry in zip(zips, manifest['addons']):
+                self.assertEqual(archive.name, f"{entry['name']}-{entry['sha256'][:16]}.zip")
+                self.assertEqual(entry['url'], archive.name)
+                self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), entry['sha256'])
+                self.assertNotEqual(archive.stem, entry['name'])
+
 
 
 class ZoneLightTests(unittest.TestCase):

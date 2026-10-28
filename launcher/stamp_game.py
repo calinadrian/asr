@@ -42,6 +42,10 @@ def stamp(source, output, version, build=None):
     data = brand_game.apply(allow_any_name(Path(source).read_bytes()), (ROOT / 'launcher/asr.ico').read_bytes())
     import zone_cards
     data = zone_cards.apply(data)
+    import addon_manager_patch
+    data = addon_manager_patch.apply(data)
+    import addon_refresh_patch
+    data = addon_refresh_patch.apply(data)
     old_code, old_version = current(data)
     build = build or subprocess.run(['git', 'rev-parse', '--short=8', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     if len(version) != len(old_version) or not re.fullmatch(r'\d+\.\d+\.\d+', version):

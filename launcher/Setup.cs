@@ -24,7 +24,7 @@ namespace ASR.Setup {
     public sealed class Part { public string url; public long size; }
     public sealed class GameFile { public string name; public string version; public long size; public string sha256; public Part[] parts; }
     public sealed class GameFiles { public GameFile[] patches; }
-    public sealed class Addon { public string name; public string url; public long size; public string sha256; }
+    public sealed class Addon { public string name; public string url; public long size; public string sha256; public string title; public string description; public string version; }
     public sealed class Addons { public Addon[] addons; }
 
     public static class Game {
@@ -34,6 +34,7 @@ namespace ASR.Setup {
         // Installed by the first ASR-Setup, and kept by players who update in-game; replaced on reinstall.
         public const string LegacyExe = "AzerothSurvivors.exe";
         public const string PlayName = "Play ASR.exe";
+        public const string AddonName = "ASRAddOn.exe";
         // Read by the game at start; each is a setting the game already supports.
         public static readonly Dictionary<string, string> Settings = new Dictionary<string, string> {
             { "WOW_ROGUE_UPDATE_URL", Release + "latest.json" },
@@ -138,6 +139,11 @@ namespace ASR.Setup {
             status("Downloading ASR " + game.version + "...");
             Fetch(game, fresh, added => { done += added; progress(done, total); });
             status("Finishing the update...");
+            // Portable and legacy-launcher games need the manager too; no registration is required for it.
+            string addonManager = Path.Combine(folder, AddonName);
+            byte[] currentHelper = File.ReadAllBytes(self);
+            if (!File.Exists(addonManager) || !File.ReadAllBytes(addonManager).SequenceEqual(currentHelper))
+                File.WriteAllBytes(addonManager, currentHelper);
             bool installed = File.Exists(Path.Combine(folder, Registration.Marker));
             if (installed) {
                 byte[] helper = File.ReadAllBytes(self);
@@ -230,51 +236,10 @@ namespace ASR.Setup {
             return 0;
         }
 
-        // ASR's own addons (addons.json on the release) into the game's AddOns folder, where its AddOns page lists them
-        // for the player to turn on. Each carries a marker with its zip's hash: an unchanged one is left alone, a changed
-        // one replaced whole, and one the release no longer lists removed. Folders without a marker are the player's.
+        // Refresh only catalog addons the player already installed. New entries and removals require an explicit choice.
         public const string AddonMarker = ".asr-addon";
         public static void SyncAddons(string folder, Action<string> log) {
-            string root = Path.Combine(folder, "benilla-config", "AddOns");
-            Directory.CreateDirectory(root);
-            Addon[] listed = Manifest<Addons>("addons.json").addons ?? new Addon[0];
-            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (Addon addon in listed) {
-                if (addon == null || addon.name == null || !Regex.IsMatch(addon.name, @"^[A-Za-z0-9_]{1,40}$") || addon.url == null ||
-                    !Regex.IsMatch(addon.url, @"^[A-Za-z0-9._-]{1,120}$") || addon.size < 1 || addon.size > 16 << 20 || addon.sha256 == null)
-                    throw new InvalidDataException("Invalid addons manifest.");
-                names.Add(addon.name);
-                string target = Path.Combine(root, addon.name), marker = Path.Combine(target, AddonMarker);
-                if (File.Exists(marker) && File.ReadAllText(marker).Trim() == addon.sha256) continue;
-                // A same-named folder without our marker is the player's own copy: never overwrite it.
-                if (Directory.Exists(target) && !File.Exists(marker)) { log("addons: kept the player's own " + addon.name); continue; }
-                byte[] zip = Download(Release + addon.url, addon.size);
-                string hash;
-                using (SHA256 sha = SHA256.Create()) hash = BitConverter.ToString(sha.ComputeHash(zip)).Replace("-", "").ToLowerInvariant();
-                if (zip.LongLength != addon.size || hash != addon.sha256) throw new InvalidDataException(addon.name + " failed verification.");
-                string fresh = target + ".new";
-                if (Directory.Exists(fresh)) Directory.Delete(fresh, true);
-                Directory.CreateDirectory(fresh);
-                string inside = Path.GetFullPath(fresh) + Path.DirectorySeparatorChar;
-                using (var archive = new ZipArchive(new MemoryStream(zip), ZipArchiveMode.Read))
-                    foreach (ZipArchiveEntry entry in archive.Entries) {
-                        if (entry.FullName.EndsWith("/")) continue;
-                        if (!entry.FullName.StartsWith(addon.name + "/")) throw new InvalidDataException(addon.name + " has files outside its folder.");
-                        string path = Path.GetFullPath(Path.Combine(fresh, entry.FullName.Substring(addon.name.Length + 1)));
-                        if (!path.StartsWith(inside, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException(addon.name + " has an unsafe path.");
-                        Directory.CreateDirectory(Path.GetDirectoryName(path));
-                        using (Stream input = entry.Open()) using (FileStream output = File.Create(path)) input.CopyTo(output);
-                    }
-                File.WriteAllText(Path.Combine(fresh, AddonMarker), addon.sha256);
-                if (Directory.Exists(target)) Directory.Delete(target, true);
-                Directory.Move(fresh, target);
-                log("addons: installed " + addon.name);
-            }
-            foreach (string installed in Directory.GetDirectories(root))
-                if (File.Exists(Path.Combine(installed, AddonMarker)) && !names.Contains(Path.GetFileName(installed))) {
-                    Directory.Delete(installed, true);
-                    log("addons: removed " + Path.GetFileName(installed));
-                }
+            new AddonStore(folder).Sync(log);
         }
 
         // After installing an update the game restarts itself, with this same environment and so the same relay.
@@ -316,6 +281,7 @@ namespace ASR.Setup {
             // Bytes only: File.Copy would carry over the download's "from the internet" mark, and Windows would warn on every start.
             try { File.WriteAllBytes(Path.Combine(folder, Game.PlayName), File.ReadAllBytes(Assembly.GetExecutingAssembly().Location)); }
             catch (IOException) { throw new IOException("Close ASR first, then run ASR-Setup again."); }
+            File.WriteAllBytes(Path.Combine(folder, Game.AddonName), File.ReadAllBytes(Assembly.GetExecutingAssembly().Location));
             File.WriteAllText(Path.Combine(folder, Marker), new JavaScriptSerializer().Serialize(new Dictionary<string, object> { { "shortcuts", shortcuts } }));
             long size = new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
             string version = "";
@@ -517,6 +483,11 @@ namespace ASR.Setup {
             try {
                 // Named as the game: the game's updater installed this program from latest.json and restarted it.
                 string self = Assembly.GetExecutingAssembly().Location, name = Path.GetFileName(self);
+                if (args.Length == 1 && name.Equals(Game.AddonName, StringComparison.OrdinalIgnoreCase) &&
+                    AddonManager.IsFolderArgument(args[0], Path.GetDirectoryName(self)))
+                    return AddonManager.Run(Path.GetDirectoryName(self));
+                if (name.Equals(Game.AddonName, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Open Manage AddOns from Options > AddOns inside ASR.");
                 if (name.Equals(Game.ExeName, StringComparison.OrdinalIgnoreCase) || name.Equals(Game.LegacyExe, StringComparison.OrdinalIgnoreCase))
                     return Updating.Run(self);
                 if (args.Length == 3 && args[0] == "--render-preview") {

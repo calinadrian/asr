@@ -19,3 +19,16 @@ jobs:
         run: python -m unittest discover -s server -p 'test_native*.py' -v
       - name: Test game release and zone-photo contracts
         run: python -m unittest discover -s launcher -p "test_game_release.py" -v
+      - name: Test native addon refresh contracts
+        run: python -m unittest discover -s launcher -p "test_addon_refresh.py" -v
+      - name: Test native addon patch contracts
+        run: python -m unittest discover -s launcher -p "test_addon_manager.py" -v
+  addon-files:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Verify addon installs, removals, persistence and unsafe archive rejection
+        run: python -m unittest discover -s launcher -p "test_addon_manager.py" -v
