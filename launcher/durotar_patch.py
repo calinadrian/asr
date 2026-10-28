@@ -206,6 +206,7 @@ def apply(source, profile=PROFILE):
         struct.pack_into('<II', payload, at+64, BOSS_ID + i, display)
     pointer(zone+120, enemies); pointer(zone+136, bosses)
     tier = clone(profile['tier'], count*TIER_SIZE, TIER_SIZE)  # Durotar shares Elwynn's tier, zero.
+    ui_tier = clone(profile['ui_tier'], count*TIER_SIZE, TIER_SIZE)  # The Armory's own copy.
 
     def retarget(site, old, new):
         ins = read(site, 7)
@@ -225,6 +226,13 @@ def apply(source, profile=PROFILE):
             raise ValueError('Native zone reference changed')
     for site in profile['end_references']:
         retarget(site, catalog_rva + count*record, cva + catalog + (count+1)*record)
+    for site in profile['ui_tier_references']:
+        retarget(site, profile['ui_tier'], cva + ui_tier)
+    # The zone picker reads a static (records, count) slice; its pointer is already relocated.
+    for site in profile['slices']:
+        if struct.unpack('<QQ', read(site, 16)) != (base + catalog_rva, count):
+            raise ValueError('Unsupported native zone list')
+        struct.pack_into('<QQ', data, offset(site), base + cva + catalog, count + 1)
     for edit in profile['edits']:
         at = offset(edit['rva'])
         data[at:at+len(edit['after'])//2] = bytes.fromhex(edit['after'])
@@ -267,6 +275,54 @@ def apply(source, profile=PROFILE):
         else:
             code.jcc('ae', h['rejected']).jmp(h['accepted'])
         bridge(h, code)
+
+    # The picker builds its cards in catalog order. Its loop advances with rbx = next record and
+    # r15 = next index; visit Elwynn, Durotar, then the rest, so the starters sit together while
+    # every zone keeps its index.
+    h = hooks['card_order']
+    step = lambda value: struct.pack('<I', value & 0xffffffff).hex()
+    bridge(h, Code()
+           .raw('4983ff01').jcc('ne', 'durotar')                                   # after Elwynn
+           .raw('4881c3' + step((count-1)*record) + '41bf' + step(count)).jmp('next')
+           .label('durotar').raw(f'4983ff{count+1:02x}').jcc('ne', 'last')         # after Durotar
+           .raw('4881eb' + step(count*record) + '41bf' + step(1)).jmp('next')
+           .label('last').raw(f'4983ff{count:02x}').jcc('ne', 'next')              # after the last zone
+           .raw('4881c3' + step(record) + '41bf' + step(count+1))
+           .label('next').raw(h['before']).jmp(h['resume']))
+    # A card is locked when its index reaches the unlocked count; Durotar is a starter.
+    for name in ('card_lock', 'card_lock_selected'):
+        h = hooks[name]
+        before = bytes.fromhex(h['before'])  # cmp rsi, [rcx or rax] / setae byte [rbp+locked]
+        if before[:2] != b'\x48\x3b' or before[3:6] != b'\x0f\x93\x85':
+            raise ValueError('Unsupported native zone card lock')
+        bridge(h, Code().raw(before).raw(f'4883fe{count:02x}').jcc('ne', 'done')           # cmp rsi, 12
+               .raw(b'\xc6\x85' + before[6:10] + b'\0').label('done').jmp(h['resume']))  # locked = 0
+
+    # The Armory's drop tables list zones the same way, with the index in a stack slot.
+    h = hooks['drop_order']
+    before = bytes.fromhex(h['before'])  # mov rcx, [rbp+record] / add rcx, 240 / inc qword [rbp+index]
+    if before[:3] != b'\x48\x8b\x8d' or before[7:14] != bytes.fromhex('4881c1f0000000') or before[14:17] != b'\x48\xff\x85':
+        raise ValueError('Unsupported native drop table list')
+    index = before[17:21]
+    set_index = lambda value: b'\x48\xc7\x85' + index + struct.pack('<I', value)
+    bridge(h, Code().raw(before).raw(b'\x48\x8b\x85' + index)                       # mov rax, next index
+           .raw('4883f801').jcc('ne', 'durotar')
+           .raw('4881c1' + step((count-1)*record)).raw(set_index(count)).jmp('next')
+           .label('durotar').raw(f'4883f8{count+1:02x}').jcc('ne', 'last')
+           .raw('4881e9' + step(count*record)).raw(set_index(1)).jmp('next')
+           .label('last').raw(f'4883f8{count:02x}').jcc('ne', 'next')
+           .raw('4881c1' + step(record)).raw(set_index(count+1))
+           .label('next').jmp(h['resume']))
+    is_index_durotar = b'\x48\x83\xbd' + index + bytes([count])                     # cmp qword [rbp+index], 12
+    h = hooks['drop_unlocked']  # cmp [rbp+index], rax / setb dil
+    bridge(h, Code().raw(h['before']).raw(is_index_durotar).jcc('ne', 'done').raw('40b701')
+           .label('done').jmp(h['resume']))
+    h = hooks['drop_lock']  # cmp [rbp+index], rax / jae locked
+    bridge(h, Code().raw(is_index_durotar).jcc('e', h['accepted']).raw(h['before'][:14])
+           .jcc('ae', h['rejected']).jmp(h['accepted']))
+    h = hooks['drop_lock_detail']  # mov rax, [rbp+index] / cmp rax, [r12] / jb unlocked
+    bridge(h, Code().raw(h['before'][:14]).raw(f'4883f8{count:02x}').jcc('e', h['accepted'])
+           .raw(h['before'][14:22]).jcc('b', h['accepted']).jmp(h['resume']))
 
     # The native server serializes creature-query replies through an ID switch; route Durotar's
     # IDs to its existing enemy and boss serializers using the new records.

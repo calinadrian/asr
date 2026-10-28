@@ -234,6 +234,18 @@
    "before": "4883f90b",
    "after": "4883f90c",
    "name": "difficulty progress lists Durotar"
+  },
+  {
+   "rva": 1984952,
+   "before": "4883f80b",
+   "after": "4883f80c",
+   "name": "Armory tier for thirteen zones"
+  },
+  {
+   "rva": 1988097,
+   "before": "4883f90c",
+   "after": "4883f90d",
+   "name": "Armory selected-zone tier for thirteen zones"
   }
  ],
  "hooks": {
@@ -300,6 +312,50 @@
    "accepted": 97262174,
    "rejected": 97262229,
    "before": "4c39c04c8dadc00000007337"
+  },
+  "card_order": {
+   "rva": 2142188,
+   "size": 13,
+   "resume": 2142201,
+   "before": "4c89fe4889df488b9dd8050000"
+  },
+  "card_lock": {
+   "rva": 2142243,
+   "size": 10,
+   "resume": 2142253,
+   "before": "483b310f938577060000"
+  },
+  "card_lock_selected": {
+   "rva": 2142311,
+   "size": 10,
+   "resume": 2142321,
+   "before": "483b300f938577060000"
+  },
+  "drop_order": {
+   "rva": 1987973,
+   "size": 21,
+   "resume": 1987994,
+   "before": "488b8d680600004881c1f000000048ff85d0060000"
+  },
+  "drop_unlocked": {
+   "rva": 1986436,
+   "size": 11,
+   "resume": 1986447,
+   "before": "483985d0060000400f92c7"
+  },
+  "drop_lock": {
+   "rva": 1987449,
+   "size": 9,
+   "accepted": 1987458,
+   "rejected": 1987493,
+   "before": "483985d00600007323"
+  },
+  "drop_lock_detail": {
+   "rva": 1989916,
+   "size": 17,
+   "accepted": 1990536,
+   "resume": 1989933,
+   "before": "488b85d0060000493b04240f825b020000"
   }
  },
  "rank_calls": [
@@ -317,5 +373,13 @@
   96557034,
   96893263,
   96838356
+ ],
+ "slices": [
+  117374784
+ ],
+ "ui_tier": 102736400,
+ "ui_tier_references": [
+  1984896,
+  1988015
  ]
 }

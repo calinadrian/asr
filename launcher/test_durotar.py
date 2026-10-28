@@ -13,19 +13,27 @@ import game_release
 BASE = 0x140000000
 PROFILE = durotar_patch.PROFILE
 STRINGS, ENEMIES, BOSSES = PROFILE['tier'] // 4096 * 4096, PROFILE['tier'] // 4096 * 4096 + 0x1000, PROFILE['tier'] // 4096 * 4096 + 0x1400
-RELOC = (PROFILE['catalog'] + 13*240) // 4096 * 4096 + 0x1000
+RELOC = (max(PROFILE['catalog'] + 13*240, *PROFILE['slices']) + 16) // 4096 * 4096 + 0x1000
 
 
 def fixture(profile=PROFILE):
     """A sparse PE carrying the production profile's original bytes at their reviewed addresses."""
     catalog, lookup = profile['catalog'], profile['lookup']
-    code = [lookup, *profile['references'], *profile['end_references'], *profile['rank_calls'],
-            *(e['rva'] for e in profile['edits']), *(h['rva'] for h in profile['hooks'].values())]
-    text_va = min(code) // 4096 * 4096
-    text_size = (max(code) + 16 - text_va + 511) // 512 * 512
-    rdata_size = (catalog + 13*240 - STRINGS + 511) // 512 * 512
-    sections = [(b'.text', text_va, text_size, 0x400), (b'.rdata', STRINGS, rdata_size, 0x400 + text_size),
-                (b'.reloc', RELOC, 512, 0x400 + text_size + rdata_size)]
+    used = [lookup, *profile['references'], *profile['end_references'], *profile['rank_calls'],
+            *profile['ui_tier_references'], *(e['rva'] for e in profile['edits']),
+            *(h['rva'] for h in profile['hooks'].values()), *profile['slices'], profile['ui_tier'], profile['ui_tier'] + 96,
+            STRINGS, ENEMIES + 12*80, BOSSES + 5*104, profile['tier'] + 96, catalog + 13*240]
+    # One compact section per cluster of used addresses keeps the fixture small.
+    sections, raw = [], 0x400
+    for address in sorted(used):
+        if sections and address + 32 <= sections[-1][1] + 0x100000:
+            sections[-1][2] = max(sections[-1][2], (address + 32 - sections[-1][1] + 511) // 512 * 512)
+        else:
+            sections.append([b'.s%d' % len(sections), address // 4096 * 4096, (address % 4096 + 32 + 511) // 512 * 512])
+    for section in sections:
+        section.append(raw)
+        raw += section[2]
+    sections.append([b'.reloc', RELOC, 512, raw])
     data = bytearray(sections[-1][3] + 512)
     data[:2] = b'MZ'
     struct.pack_into('<I', data, 60, 0x80)
@@ -50,6 +58,11 @@ def fixture(profile=PROFILE):
     for field, value in ((8, (BASE + STRINGS, 6)), (120, (BASE + ENEMIES, 12)), (136, (BASE + BOSSES, 5))):
         put(catalog + field, struct.pack('<QQ', *value))
     put(profile['tier'], struct.pack('<12Q', 0, 0, 1, 1, 2, 2, 3, 3, 5, 5, 4, 4))
+    put(profile['ui_tier'], struct.pack('<12Q', 0, 0, 1, 1, 2, 2, 3, 3, 5, 5, 4, 4))
+    for site in profile['slices']:
+        put(site, struct.pack('<QQ', BASE + catalog, 12))
+    for site in profile['ui_tier_references']:
+        put(site, b'\x48\x8d\x3d' + struct.pack('<i', profile['ui_tier'] - site - 7))
     relocs = [catalog+8, catalog+120, catalog+136]
     pages = {}
     for rva in relocs:
@@ -131,6 +144,20 @@ class DurotarPatchTests(unittest.TestCase):
         self.assertEqual(struct.unpack_from('<QQI', self.result, locate(self.result, bosses - BASE + 4*104 + 48)), (8, 0, 1694))
         end = PROFILE['end_references'][0]
         self.assertEqual(end + 7 + struct.unpack_from('<i', self.result, locate(self.result, end)+3)[0], catalog + 13*240)
+
+    def test_picker_and_armory_list_thirteen_zones_with_durotar_as_a_starter(self):
+        site = PROFILE['references'][0]
+        catalog = site + 7 + struct.unpack_from('<i', self.result, locate(self.result, site)+3)[0] - 240
+        for slice_site in PROFILE['slices']:
+            self.assertEqual(struct.unpack_from('<QQ', self.result, locate(self.result, slice_site)), (BASE + catalog, 13))
+        for ref in PROFILE['ui_tier_references']:
+            table = ref + 7 + struct.unpack_from('<i', self.result, locate(self.result, ref)+3)[0]
+            self.assertEqual(struct.unpack_from('<13Q', self.result, locate(self.result, table)),
+                             (0, 0, 1, 1, 2, 2, 3, 3, 5, 5, 4, 4, 0))
+        # The card loops visit Elwynn (index 0) then Durotar: after index 0 the next index is 12.
+        order = locate(self.result, jump_target(self.result, PROFILE['hooks']['card_order']['rva']))
+        self.assertEqual(self.result[order:order+4], bytes.fromhex('4983ff01'))
+        self.assertEqual(self.result[order+10:order+23], bytes.fromhex('4881c3500a000041bf0c000000'))
 
     def test_every_new_pointer_is_relocated(self):
         va, raw, virtual = section(self.result, durotar_patch.SECTION)

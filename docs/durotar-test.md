@@ -26,6 +26,15 @@ assets or panics. The earlier test archive replaced the game's own
 `patch-B.MPQ`; Durotar now has its own `patch-X.MPQ`, which also carries the
 baked NPC textures the Burning Blade humanoids need.
 
+The zone picker and the Armory's drop tables list zones from a static
+(records, count) slice that 0.124.2 left at twelve, so Durotar was missing.
+0.124.3 points it at the thirteen-zone catalog, makes both lists visit Elwynn,
+Durotar, then the rest (every zone keeps its index, so saved progress is
+unchanged), treats Durotar as unlocked in their lock checks, and gives it
+Elwynn's tier in the Armory. A victory in either starter raises the class's
+unlocked count to two only when it is lower, opening Duskwood without
+reducing any progress.
+
 ## Confirmed behavior
 
 - Add Durotar as a thirteenth zone; preserve all twelve existing zones.
