@@ -60,10 +60,14 @@ class Writer:
 
 
 class Converter:
-    def __init__(self, model, skel, skin, name, keep_ids, geosets, playable):
+    def __init__(self, model, skel, skin, name, keep_ids, geosets, playable, texture_files=None):
         """model, skel, skin: retail file bytes. keep_ids: animation IDs to carry. geosets maps a
         retail geoset ID to its 1.12 ID (0 folds it into the base mesh) and leaves out the ones
-        to drop. playable: a 1.12 PlayableAnimationLookup to reuse, as (fallback id, flags)."""
+        to drop. playable: a 1.12 PlayableAnimationLookup to reuse, as (fallback id, flags).
+        texture_files maps retail-only texture types to a fixed 1.12 file; batches drawing any
+        other retail-only type are dropped."""
+        self.texture_files = texture_files or {}
+        self.usable = {1, 2, 6} | set(self.texture_files)
         md = chunks(model)
         self.m = md['MD21']
         if self.m[:4] != b'MD20' or struct.unpack_from('<I', self.m, 4)[0] < 272:
@@ -162,12 +166,12 @@ class Converter:
             rec = sk[so + 48 * i:so + 48 * i + 48]
             sid, level, vstart, vcount, istart, icount = struct.unpack_from('<6H', rec)
             new_id = self.geosets.get(sid)
-            if new_id is None:
+            kinds = {tex_types.get(tex_lookup[struct.unpack_from('<H', b, 0x10)[0]])
+                     for b in batches if struct.unpack_from('<H', b, 4)[0] == i}
+            if new_id is None or not kinds & self.usable:
                 dropped[sid] = dropped.get(sid, 0) + icount
                 continue
-            body = any(struct.unpack_from('<H', b, 4)[0] == i and
-                       tex_types.get(tex_lookup[struct.unpack_from('<H', b, 0x10)[0]]) == 1
-                       for b in batches)
+            body = 1 in kinds
             first = len(self.vertices) // 48
             for k in range(vstart, vstart + vcount):
                 vertex = bytearray(m[mo + 48 * lookup[k]:mo + 48 * lookup[k] + 48])
@@ -193,7 +197,8 @@ class Converter:
         self.batches = []
         for b in batches:
             section = struct.unpack_from('<H', b, 4)[0]
-            if section not in section_map:
+            kind = tex_types.get(tex_lookup[struct.unpack_from('<H', b, 0x10)[0]])
+            if section not in section_map or kind not in self.usable:
                 continue
             struct.pack_into('<HH', b, 4, section_map[section], section_map[section])
             struct.pack_into('<H', b, 2, 0)  # retail shader combos mean nothing to 1.12
@@ -280,8 +285,11 @@ class Converter:
         tex = bytearray()
         empty = w.put(b'\0')
         for i in range(len(types)):
-            kind = types[i] if types[i] in (1, 2, 6) else 1
-            tex += struct.pack('<IIII', kind, 0, 1, empty)
+            if types[i] in self.texture_files:
+                name = self.texture_files[types[i]].encode() + b'\0'
+                tex += struct.pack('<IIII', 0, 0, len(name), w.put(name, 1))
+            else:
+                tex += struct.pack('<IIII', types[i] if types[i] in (1, 2, 6) else 1, 0, 1, empty)
         w.array(0x5C, len(types), bytes(tex))
 
         tn, to = arr(m, 0x58)

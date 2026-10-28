@@ -1,10 +1,12 @@
-"""Retail character down-conversion and CASC block contracts, on synthetic files."""
+"""Retail character down-conversion, texture and CASC block contracts, on synthetic files."""
 import struct
 import unittest
 import zlib
 
+import blp
 import casc
 import retail_m2
+import retail_textures
 
 
 class Blob:
@@ -123,6 +125,55 @@ class ConverterTests(unittest.TestCase):
         retail_m2.Converter(*files, 'Test', {0}, {0: 0}, []).convert()
         with self.assertRaisesRegex(ValueError, '65538 indices'):
             retail_m2.Converter(*files, 'Test', {0}, {0: 0, 1704: 1704}, []).convert()
+
+
+class TextureTests(unittest.TestCase):
+    def image(self, w, h, alpha=255):
+        return w, h, bytearray(b''.join(bytes((x * 255 // w, y * 255 // h, 80, alpha))
+                                        for y in range(h) for x in range(w)))
+
+    def test_dxt_round_trip_keeps_size_mips_and_colour(self):
+        source = self.image(64, 32)
+        data = blp.encode(source)
+        self.assertEqual(data[:4], b'BLP2')
+        self.assertEqual(blp.mip_count(data), 7)          # 64x32 down to 1x1
+        w, h, px = blp.decode(data)
+        self.assertEqual((w, h), (64, 32))
+        error = max(abs(a - b) for a, b in zip(px, source[2]))
+        self.assertLess(error, 40)
+        self.assertEqual(blp.decode(data, 2)[:2], (16, 8))
+
+    def test_transparent_images_use_dxt3(self):
+        data = blp.encode(self.image(8, 8, alpha=0))
+        self.assertEqual(data[8:11], bytes((2, 8, 1)))
+        self.assertEqual(set(blp.decode(data)[2][3::4]), {0})
+
+    def test_face_square_becomes_classic_strips(self):
+        upper, lower = retail_textures.strips(self.image(512, 512))
+        self.assertEqual((upper[:2], lower[:2]), ((128, 32), (128, 64)))
+        # The top third of the square ends up in the upper strip.
+        self.assertLess(upper[2][1], lower[2][1])
+
+    def test_only_ordinary_player_choices_are_carried(self):
+        class Table:
+            def __init__(self, rows, names=None):
+                self.rows, self.names = rows, names or {}
+
+            def string(self, row, field):
+                return self.names[row]
+
+        tables = dict(option=Table({7: [0, 7, 0, 0, 19]}, {7: 'Skin Color'}),
+                      # (name, id, option, requirement, ui, sort)
+                      choice=Table({1: [0, 1, 7, 141, 0, 2], 2: [0, 2, 7, 141, 0, 1],
+                                    3: [0, 3, 7, 115, 0, 3], 4: [0, 4, 7, 12, 0, 4],
+                                    5: [0, 5, 7, 666, 0, 5]}),
+                      # (unused, type, class mask, unused, unlock)
+                      requirement=Table({141: [0, 3, 0xFFFFFFFF, 0, 0], 115: [0, 3, 32, 0, 0],
+                                         12: [0, 2, 0xFFFFFFFF, 0, 0], 666: [0, 3, 30687, 0, 15579]}),
+                      texture=Table({}), element=Table({}), material=Table({}), geoset=Table({}))
+        custom = retail_textures.Customization(tables, 19)
+        self.assertEqual(custom.choices('Skin Color'), [2, 1])
+        self.assertEqual(custom.choices('Horns'), [])
 
 
 class BlteTests(unittest.TestCase):

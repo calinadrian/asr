@@ -178,10 +178,37 @@ Geoset mapping used:
 - **Why:** the male's clothing alone is 46,000 indices, so the 65,535 limit leaves room
   for six hair styles.
 
-The eyes (3301) draw a retail eye-colour texture (type 19) through a two-texture
-shader. They need a baked eye texture as a type 0 (file name) texture. One base-mesh
-submesh draws a type 9 texture that is not identified yet. Both currently fall back to
-the body texture.
+The eyes (3301) draw a retail eye-colour texture (type 19). `texture_files` turns that
+into a type 0 texture naming `Character\BloodElf\BloodElf<Sex>Eyes.blp`. Type 9 is the
+Demon Hunter blindfold; batches of any retail-only type without a file are dropped, and
+so is a submesh left with no batch (one 6-index submesh in geoset 0).
+
+## Textures (`launcher/blp.py`, `launcher/retail_textures.py`)
+
+`blp.py` decodes BLP2 (palettized, DXT1/3/5, BGRA) at any mip level. It encodes 1.12
+DXT1, or DXT3 when there is alpha, with a full mip chain. `retail_textures.Builder`
+writes the `CharSections` pieces from the customization tables. Only ordinary player
+choices are used: no Death Knight (class mask 32) or Demon Hunter (2048) choices,
+nothing that needs an unlock or a requirement other than type 3.
+
+| Section | From (retail target) | 1.12 piece |
+|---|---|---|
+| 0 skin | 1, left half | `<Sex>\BloodElf<Sex>Skin00_CC` 256x256, face square squeezed into the strips |
+| 1 face | 5, face square | `FaceLowerVV_CC` 128x64 + `FaceUpperVV_CC` 128x32 |
+| 3 hair | 10 hair colour, 12 scalp | `Hair00_CC` 256x256 (shared by both sexes), `ScalpLower/UpperHairVV_CC` |
+| 4 underwear | 13 pelvis, 14 torso | `NakedPelvisSkin00_CC`, `NakedTorsoSkin00_CC` 128x64 |
+| 2 facial hair | geosets only | empty rows, one per kept style and hair colour |
+
+| | Male | Female |
+|---|---|---|
+| Skin colours / faces | 14 / 10 | 14 / 10 |
+| Hair colours | 20 | 20 |
+| Files / size | 569 / 5.6 MB | 823 / 8.1 MB |
+| Build time | 28 s | 33 s |
+
+Checked by compositing skin, face, underwear and scalp the 1.12 way on a 256x256 canvas
+and rasterizing the converted models posed at stand. Both show correct faces, eyes,
+ears, hair and underwear.
 
 ## Proposed first playable pass
 
