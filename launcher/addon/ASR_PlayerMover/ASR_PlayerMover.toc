@@ -1,0 +1,6 @@
+## Interface: 11200
+## Title: ASR Player Frame Mover
+## Notes: Move the character portrait and health/mana bars. /asrplayer unlock to drag.
+## Version: 1.0.0
+## SavedVariables: ASR_PlayerMoverDB
+PlayerMover.lua
