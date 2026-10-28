@@ -22,7 +22,8 @@ def fixture(profile=PROFILE):
     used = [lookup, *profile['references'], *profile['end_references'], *profile['rank_calls'],
             *profile['ui_tier_references'], *(e['rva'] for e in profile['edits']),
             *(h['rva'] for h in profile['hooks'].values()), *profile['slices'], profile['ui_tier'], profile['ui_tier'] + 96,
-            STRINGS, ENEMIES + 12*80, BOSSES + 5*104, profile['tier'] + 96, catalog + 13*240]
+            STRINGS, ENEMIES + 12*80, BOSSES + 5*104, profile['tier'] + 96, catalog + 13*240,
+            profile['achievement_points']['table'] + 48, profile['achievement_points']['reference']]
     # One compact section per cluster of used addresses keeps the fixture small.
     sections, raw = [], 0x400
     for address in sorted(used):
@@ -82,6 +83,9 @@ def fixture(profile=PROFILE):
         put(edit['rva'], bytes.fromhex(edit['before']))
     for hook in profile['hooks'].values():
         put(hook['rva'], bytes.fromhex(hook['before']))
+    points = profile['achievement_points']
+    put(points['table'], struct.pack('<12I', *points['original']) + b'type')
+    put(points['reference'], bytes.fromhex(points['before']))
     return bytes(data)
 
 
@@ -125,6 +129,34 @@ class DurotarPatchTests(unittest.TestCase):
 
     def test_reapplying_is_unchanged(self):
         self.assertEqual(durotar_patch.apply(self.result), self.result)
+
+    def test_durotar_achievement_uses_ten_points_and_preserves_original_scores(self):
+        spec = PROFILE['achievement_points']
+        self.assertEqual(struct.unpack_from('<I', self.source, locate(self.source, spec['table'])+48)[0],
+                         1701869940)
+        site = spec['reference']
+        target = site + 7 + struct.unpack_from('<i', self.result, locate(self.result, site)+3)[0]
+        self.assertEqual(struct.unpack_from('<13I', self.result, locate(self.result, target)),
+                         (*spec['original'], 10))
+        self.assertEqual(self.result[locate(self.result, spec['table'])+48:locate(self.result, spec['table'])+52], b'type')
+
+    def test_existing_durotar_installation_gets_points_fix(self):
+        with patch.object(durotar_patch, 'achievement_points', side_effect=lambda data, profile: bytes(data)):
+            old = durotar_patch.apply(self.source)
+        self.assertEqual(durotar_patch.apply(old), self.result)
+
+    def test_unknown_or_damaged_points_layout_is_rejected(self):
+        spec = PROFILE['achievement_points']
+        site = spec['reference']
+        target = site + 7 + struct.unpack_from('<i', self.result, locate(self.result, site)+3)[0]
+        for original, at in ((self.source, locate(self.source, spec['table'])),
+                             (self.source, locate(self.source, spec['reference'])),
+                             (self.result, locate(self.result, target)+48),
+                             (self.result, locate(self.result, spec['reference'])+3)):
+            damaged = bytearray(original)
+            damaged[at] ^= 1
+            with self.subTest(at=at), self.assertRaisesRegex(ValueError, 'achievement'):
+                durotar_patch.apply(damaged)
 
     def test_durotar_is_the_thirteenth_record_with_its_own_schedule(self):
         va, _, _ = section(self.result, durotar_patch.SECTION)

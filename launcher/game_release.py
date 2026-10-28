@@ -90,6 +90,11 @@ def require_live_data(tag, folder):
         raise ValueError('Publish data first with asr publish-data DATA-FOLDER: the live data feed needs the matching zone-photo archive')
     if not any(p.get('name', '').lower() == ARCHIVE.lower() for p in patches):
         raise ValueError(f'Publish Durotar first with --durotar VANILLA-DATA --data DATA: the live data feed needs {ARCHIVE}')
+    from bloodelf_patch import PROFILE
+    asset = PROFILE['assets']
+    if not any(p.get('name', '').lower() == asset['name'].lower()
+               and p.get('sha256') == asset['sha256'] for p in patches):
+        raise ValueError('Publish the matching Blood Elf archive first with --bloodelf ARCHIVE')
     (folder / 'patches.json').unlink()
 
 
@@ -253,6 +258,30 @@ def prepare_addons(folder):
     return published, manifest
 
 
+def publish_bloodelf(archive, tag=GAME_TAG):
+    """Publish the reviewed Blood Elf archive without replacing unrelated data."""
+    from bloodelf_patch import PROFILE
+    asset = PROFILE['assets']
+    archive = Path(archive)
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    if digest != asset['sha256']:
+        raise ValueError('Blood Elf archive differs from the tested release artifact')
+    with tempfile.TemporaryDirectory(prefix='asr-bloodelf-') as scratch:
+        folder = Path(scratch)
+        subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
+                        '--pattern', 'patches.json', '--dir', str(folder)], check=True)
+        path = folder / 'patches.json'
+        manifest = json.loads(path.read_text(encoding='utf-8-sig'))
+        if not isinstance(manifest.get('patches'), list) or not manifest['patches']:
+            raise ValueError('Publish the base game data before adding Blood Elf')
+        entry = dict(name=asset['name'], **pack(archive, f'data-patch-W-{digest[:16]}', folder))
+        manifest['patches'] = [p for p in manifest['patches']
+                               if p.get('name', '').lower() != asset['name'].lower()] + [entry]
+        path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
+        upload(tag, folder, ['patches.json'])
+    print(f'Published Blood Elf; existing game data retained on {tag}')
+
+
 def publish_addons(tag=GAME_TAG):
     """Upload addon zips, then the catalog players browse from Options > AddOns."""
     with tempfile.TemporaryDirectory(prefix='asr-addons-') as scratch:
@@ -303,6 +332,7 @@ if __name__ == '__main__':
     parser.add_argument('--lighting', action='store_true', help='with --data, publish only the zone-lighting update built from it')
     parser.add_argument('--durotar', metavar='VANILLA-DATA', help="with --data, publish only Durotar's archive, built from a vanilla 1.12.1 Data folder")
     parser.add_argument('--addons', action='store_true', help="publish ASR's addons as zips on the release")
+    parser.add_argument('--bloodelf', metavar='ARCHIVE', help='publish the reviewed Blood Elf patch-W.MPQ')
     parser.add_argument('--tag', default=GAME_TAG)
     parser.add_argument('--describe', action='store_true', help='only retitle the release and rewrite its notes for --version')
     args = parser.parse_args()
@@ -312,6 +342,8 @@ if __name__ == '__main__':
         publish_zone_photos(args.tag)
     elif args.addons:
         publish_addons(args.tag)
+    elif args.bloodelf:
+        publish_bloodelf(args.bloodelf, args.tag)
     elif args.lighting and args.data:
         publish_lighting(args.data, args.tag)
     elif args.durotar and args.data:

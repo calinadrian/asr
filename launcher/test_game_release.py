@@ -96,6 +96,54 @@ class ZonePatchTests(unittest.TestCase):
 
 
 class PhotoPublishTests(unittest.TestCase):
+    def test_blood_elf_publish_preserves_other_assets_and_requires_reviewed_archive(self):
+        import bloodelf_patch
+        archive_data = b'reviewed archive'
+        asset = dict(name='patch-W.MPQ', sha256=hashlib.sha256(archive_data).hexdigest())
+        existing = {'format': 1, 'patches': [{'name': 'patch-X.MPQ', 'sha256': 'kept'}]}
+        with tempfile.TemporaryDirectory() as scratch:
+            archive = Path(scratch) / 'patch-W.MPQ'
+            archive.write_bytes(archive_data)
+
+            def download(args, **kwargs):
+                (Path(args[args.index('--dir')+1]) / 'patches.json').write_text(json.dumps(existing))
+
+            def upload(tag, folder, manifests):
+                manifest = json.loads((folder / 'patches.json').read_text())
+                self.assertEqual(manifests, ['patches.json'])
+                self.assertEqual(manifest['format'], 1)
+                self.assertEqual(manifest['patches'][0], existing['patches'][0])
+                entry = manifest['patches'][1]
+                self.assertEqual(entry['name'], 'patch-W.MPQ')
+                self.assertEqual(entry['sha256'], asset['sha256'])
+                self.assertEqual(gzip.decompress(b''.join((folder / p['url']).read_bytes()
+                                                        for p in entry['parts'])), archive_data)
+
+            with patch.dict(bloodelf_patch.PROFILE, assets=asset), \
+                    patch.object(game_release.subprocess, 'run', download), \
+                    patch.object(game_release, 'upload', upload):
+                game_release.publish_bloodelf(archive)
+                archive.write_bytes(b'outdated')
+                with self.assertRaisesRegex(ValueError, 'tested release artifact'):
+                    game_release.publish_bloodelf(archive)
+
+    def test_game_publish_requires_matching_blood_elf_assets(self):
+        import bloodelf_patch
+        photos = hashlib.sha256(photo_archive.build_photos(ROOT / 'launcher/zone-photos')).hexdigest()
+        base = [{'name': 'patch-Z.MPQ', 'sha256': photos}, {'name': 'patch-X.MPQ'}]
+        with tempfile.TemporaryDirectory() as scratch:
+            folder = Path(scratch)
+            for extra, valid in (([], False), ([{'name': 'patch-W.MPQ', 'sha256': 'old'}], False),
+                                 ([bloodelf_patch.PROFILE['assets']], True)):
+                def download(args, **kwargs):
+                    (folder / 'patches.json').write_text(json.dumps({'patches': base+extra}))
+                with patch.object(game_release.subprocess, 'run', download):
+                    if valid:
+                        game_release.require_live_data('game', folder)
+                    else:
+                        with self.assertRaisesRegex(ValueError, 'matching Blood Elf'):
+                            game_release.require_live_data('game', folder)
+
     def test_incremental_publish_retains_existing_data_and_metadata(self):
         existing = {'format': 1, 'patches': [{'name': 'patch-2.MPQ', 'sha256': 'unchanged', 'parts': [{'url': 'existing.bin'}]}]}
         expected = photo_archive.build_photos(game_release.ROOT / 'launcher/zone-photos')

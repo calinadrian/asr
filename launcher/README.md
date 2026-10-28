@@ -42,7 +42,7 @@ The version must keep the length of the current one (`0.120.6`, not `0.121.10`),
 
 Players who installed with `ASR.exe` 0.1.8 or earlier have a launcher that starts the game with the same settings and keeps a helper running that forwards co-op through the certificate it pins on TCP 47770. It updates itself from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): `releases/latest/download/latest-envelope.json`, then `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. Each release is checked against the release-verification public key the launcher embeds.
 
-The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7, 0.120.8, 0.120.9, 0.121.0, 0.121.1, 0.124.0, 0.124.1, 0.124.2 and 0.124.3 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
+The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7, 0.120.8, 0.120.9, 0.121.0, 0.121.1, 0.124.0, 0.124.1, 0.124.2, 0.124.3 and 0.124.4 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
 
 ## Publish an old-launcher update
 
@@ -110,6 +110,16 @@ The zone's terrain, creatures and card come from a vanilla 1.12.1 client, which 
 ```
 
 To try it locally, build it with `tools\python\python.exe launcher\durotar_assets.py path\to\vanilla\Data --installed path\to\Data --out path\to\Data\patch-X.MPQ` and patch a copy of the game with `tools\python\python.exe launcher\durotar_patch.py ASR.exe --out ASR-durotar.exe`. Run `python -m unittest discover -s launcher -p test_durotar.py -v` for the patch, asset and release checks.
+
+## Blood Elf race
+
+Blood Elf is the ninth playable race (DBC race 10). Its models and textures come from a retail World of Warcraft install, which is not in the repository; see `docs/blood-elf.md`. `launcher/bloodelf_assets.py` builds `patch-W.MPQ` from it. It contains both models down-converted to the 1.12 layout (`retail_m2.py`), their customization textures cut into 1.12 pieces (`retail_textures.py`, `blp.py`), and the installed game's DBCs with race 10 rows. It reads the retail install through `casc.py` and `db2.py` and never writes to it, and it refuses to build if any row names a missing model, geoset or texture.
+
+```powershell
+tools\python\python.exe launcher\bloodelf_assets.py "path\to\World of Warcraft" --installed path\to\Data --out downloads\bloodelf\patch-W.MPQ
+```
+
+`launcher/bloodelf_patch.py` adds the race to a 0.124.3 executable that already has the Durotar patch, using the reviewed sites in `native-bloodelf.json`: `tools\python\python.exe launcher\bloodelf_patch.py ASR.exe --out ASR-bloodelf.exe`. `publish-game` now applies the executable patch. Publish the reviewed archive first with `tools\python\python.exe launcher\game_release.py --bloodelf path\to\patch-W.MPQ`; publishing the game refuses a missing or stale Blood Elf archive. Male and female previews, saved appearance and a Durotar spawn were verified in-game (see `docs/blood-elf.md`). Run `python -m unittest discover -s launcher -p "test_bl*.py"` and `-p test_retail_m2.py` for the table, converter and texture checks.
 
 ## ASR addons
 
