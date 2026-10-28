@@ -11,6 +11,7 @@ from unittest.mock import patch
 import game_release
 import photo_archive
 import zone_cards
+import zone_light
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -144,6 +145,99 @@ class PhotoPublishTests(unittest.TestCase):
             with patch.object(game_release.subprocess, 'run', download):
                 with self.assertRaisesRegex(ValueError, 'Publish data first'):
                     game_release.require_zone_photos('game', folder)
+
+
+class AddonPublishTests(unittest.TestCase):
+    def test_each_addon_zips_with_its_folder_at_the_root(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            zips = game_release.pack_addons(Path(scratch))
+            self.assertIn('ASR_HUD.zip', [z.name for z in zips])
+            import zipfile
+            with zipfile.ZipFile(Path(scratch) / 'ASR_HUD.zip') as archive:
+                names = archive.namelist()
+            self.assertIn('ASR_HUD/ASR_HUD.toc', names)
+            toc = (game_release.ROOT / 'launcher/addon/ASR_HUD/ASR_HUD.toc').read_text()
+            for line in toc.splitlines():
+                if line and not line.startswith('#'):
+                    self.assertIn('ASR_HUD/' + line, names)
+            entry = next(a for a in game_release.addons_manifest(zips)['addons'] if a['name'] == 'ASR_HUD')
+            data = (Path(scratch) / 'ASR_HUD.zip').read_bytes()
+            self.assertEqual(entry, dict(name='ASR_HUD', url='ASR_HUD.zip', size=len(data),
+                                         sha256=hashlib.sha256(data).hexdigest()))
+
+
+class ZoneLightTests(unittest.TestCase):
+    def table(self, rows):
+        """A LightIntBand.dbc with one record per (id, colours)."""
+        records = b''
+        for id, colours in rows:
+            padding = [0] * (16 - len(colours))
+            records += struct.pack('<34I', id, len(colours), *range(len(colours)), *padding, *colours, *padding)
+        return struct.pack('<4sIIII', b'WDBC', len(rows), 34, 136, 1) + records + bytes(1)
+
+    def colours(self, dbc):
+        count = struct.unpack_from('<I', dbc, 4)[0]
+        return [struct.unpack_from('<%dI' % struct.unpack_from('<I', dbc, 24 + i * 136)[0], dbc, 92 + i * 136)
+                for i in range(count)]
+
+    def luminance(self, colour):
+        return zone_light.luminance(colour >> 16 & 255, colour >> 8 & 255, colour & 255)
+
+    def test_dark_light_rises_to_its_floor_and_bright_light_is_kept(self):
+        night, noon = 0xff1a3855, 0xff9db2c8  # Duskwood's night ambient; an already bright colour
+        # Ids count from 1 in blocks of 18 rows: 2 is an ambient row, 3 a sky row, 20 the next block's ambient.
+        lifted = self.colours(zone_light.brighten(self.table([(2, [night, noon]), (3, [night]), (20, [0xff000000])])))
+        self.assertAlmostEqual(self.luminance(lifted[0][0]), zone_light.FLOORS[1], delta=0.01)
+        r, g, b = lifted[0][0] >> 16 & 255, lifted[0][0] >> 8 & 255, lifted[0][0] & 255
+        self.assertTrue(r < g < b, 'keeps the blue hue')
+        self.assertEqual(lifted[0][1], noon)
+        self.assertEqual(lifted[1], (night,), 'sky rows are untouched')
+        self.assertEqual(lifted[2][0] >> 24, 0xff, 'keeps alpha')
+        self.assertAlmostEqual(self.luminance(lifted[2][0]), zone_light.FLOORS[1], delta=0.01)
+
+    def aura(self):
+        """A version 256 glow model: one dim red colour, 45% strength, one fogged additive material."""
+        m2 = bytearray(0x200)
+        m2[:8] = b'MD20\x00\x01\x00\x00'
+
+        def track(at, values):
+            struct.pack_into('<HhIIIIII', m2, at, 0, -1, 0, 0, 0, 0, 1, values)
+
+        struct.pack_into('<II', m2, 0x54, 1, 0x150)  # colours
+        track(0x150, 0x1c0)
+        track(0x16c, 0x1d0)
+        struct.pack_into('<II', m2, 0x64, 1, 0x188)  # transparency
+        track(0x188, 0x1d4)
+        struct.pack_into('<II', m2, 0x84, 1, 0x1a4)  # materials
+        struct.pack_into('<HH', m2, 0x1a4, 0x14, 4)
+        struct.pack_into('<3f', m2, 0x1c0, 0.682, 0.161, 0.0)
+        struct.pack_into('<h', m2, 0x1d0, 32767)
+        struct.pack_into('<h', m2, 0x1d4, 14745)
+        return bytes(m2)
+
+    def test_boundary_aura_is_full_strength_bright_unfogged_and_unlit(self):
+        m2 = zone_light.vivid(self.aura())
+        r, g, b = struct.unpack_from('<3f', m2, 0x1c0)
+        self.assertEqual(r, 1.0)
+        self.assertAlmostEqual(g, 0.161 / 0.682, places=4)
+        self.assertEqual(struct.unpack_from('<h', m2, 0x1d4)[0], 32767)
+        self.assertEqual(struct.unpack_from('<HH', m2, 0x1a4), (0x14 | zone_light.UNLIT | zone_light.UNFOGGED, 4))
+        self.assertEqual(len(m2), 0x200)
+
+    def test_archive_lifts_the_highest_game_patch_and_reads_back(self):
+        dbc = self.table([(2, [0xff1a3855])])
+        auras = {name: self.aura() for name in zone_light.AURAS}
+        with tempfile.TemporaryDirectory() as scratch:
+            data = Path(scratch)
+            (data / 'patch.MPQ').write_bytes(photo_archive.build({zone_light.NAME: b'old', **auras}))
+            (data / 'patch-2.MPQ').write_bytes(photo_archive.build({zone_light.NAME: dbc}))
+            (data / 'patch-Y.MPQ').write_bytes(photo_archive.build({zone_light.NAME: b'ours'}))
+            self.assertEqual(zone_light.original(data), dbc)
+            archive = data / 'out.MPQ'
+            archive.write_bytes(zone_light.build_lighting(data))
+            self.assertEqual(zone_light.read_mpq(archive, zone_light.NAME), zone_light.brighten(dbc))
+            for name in zone_light.AURAS:
+                self.assertEqual(zone_light.read_mpq(archive, name), zone_light.vivid(auras[name]))
 
 
 if __name__ == '__main__':

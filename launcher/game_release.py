@@ -8,7 +8,8 @@ signature, so only ship files you have tested.
                 built from launcher/Setup.cs, which then brings in game.json's executable as ASR.exe and
                 adds Play ASR to installations made before it existed
   game.json     the game executable, with the same version, read by ASR-Setup and the update helper
-  patches.json  data patches the game keeps current itself (WOW_ROGUE_DATA_URL)
+  patches.json  data patches the game keeps current itself (WOW_ROGUE_DATA_URL), including ASR's own
+                patch-Z.MPQ (zone photos) and patch-Y.MPQ (brighter zone lighting)
   base.json     the base data a fresh install needs, read only by ASR-Setup
 """
 import argparse
@@ -20,6 +21,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 GITHUB_REPO = 'calinadrian/asr'
@@ -158,15 +160,73 @@ def publish_zone_photos(tag=GAME_TAG):
     print(f'Published zone photos; existing game data retained on {tag}')
 
 
+def publish_lighting(data, tag=GAME_TAG):
+    """Add the brighter zone lighting, built from data's LightIntBand.dbc, without republishing other data."""
+    from zone_light import ARCHIVE, build_lighting
+    with tempfile.TemporaryDirectory(prefix='asr-zone-light-') as scratch:
+        folder = Path(scratch)
+        subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
+                        '--pattern', 'patches.json', '--dir', str(folder)], check=True)
+        path = folder / 'patches.json'
+        manifest = json.loads(path.read_text(encoding='utf-8-sig'))
+        if not isinstance(manifest.get('patches'), list) or not manifest['patches']:
+            raise ValueError('Publish the base game data before adding zone lighting')
+        lighting = folder / ARCHIVE
+        lighting.write_bytes(build_lighting(data))
+        digest = hashlib.sha256(lighting.read_bytes()).hexdigest()
+        entry = dict(name=ARCHIVE, **pack(lighting, f'data-{lighting.stem}-{digest[:16]}', folder))
+        manifest['patches'] = [p for p in manifest['patches'] if p.get('name', '').lower() != ARCHIVE.lower()] + [entry]
+        path.write_text(json.dumps(manifest, indent=1), encoding='utf-8')
+        upload(tag, folder, ['patches.json'])
+    print(f'Published zone lighting; existing game data retained on {tag}')
+
+
+def pack_addons(folder):
+    """Zip every addon in launcher/addon as <name>.zip, its folder at the root as Install AddOns expects."""
+    zips = []
+    for addon in sorted(p for p in (ROOT / 'launcher/addon').iterdir() if p.is_dir()):
+        path = folder / f'{addon.name}.zip'
+        with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as archive:
+            for file in sorted(addon.rglob('*')):
+                if file.is_file():
+                    info = zipfile.ZipInfo(f'{addon.name}/{file.relative_to(addon).as_posix()}', (1980, 1, 1, 0, 0, 0))
+                    archive.writestr(info, file.read_bytes(), zipfile.ZIP_DEFLATED)
+        zips.append(path)
+    return zips
+
+
+def addons_manifest(zips):
+    """addons.json: what Play ASR installs into the game's AddOns folder (Game.SyncAddons)."""
+    return dict(addons=[dict(name=z.stem, url=z.name, size=z.stat().st_size,
+                             sha256=hashlib.sha256(z.read_bytes()).hexdigest()) for z in zips])
+
+
+def publish_addons(tag=GAME_TAG):
+    """Upload ASR's addons as zips, then addons.json, which Play ASR reads at every start."""
+    with tempfile.TemporaryDirectory(prefix='asr-addons-') as scratch:
+        folder = Path(scratch)
+        zips = pack_addons(folder)
+        (folder / 'addons.json').write_text(json.dumps(addons_manifest(zips), indent=1))
+        ensure_release(tag)
+        # Zips first, the manifest last: nobody sees a manifest whose zips are missing.
+        subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber'] + [str(z) for z in zips], check=True)
+        subprocess.run(['gh', 'release', 'upload', tag, '--repo', GITHUB_REPO, '--clobber', str(folder / 'addons.json')], check=True)
+    for z in zips:
+        print(f'Published https://github.com/{GITHUB_REPO}/releases/download/{tag}/{z.name}')
+
+
 def publish_data(data, tag=GAME_TAG):
     data = Path(data)
     with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
         patches, base = [], []
         from photo_archive import build_photos
+        from zone_light import ARCHIVE, build_lighting
         photos = folder / 'patch-Z.MPQ'
         photos.write_bytes(build_photos(ROOT / 'launcher/zone-photos'))
-        sources = [p for p in data.glob('*.MPQ') if p.name.lower() != 'patch-z.mpq'] + [photos]
+        lighting = folder / ARCHIVE
+        lighting.write_bytes(build_lighting(data))
+        sources = [p for p in data.glob('*.MPQ') if p.name.lower() not in ('patch-z.mpq', ARCHIVE.lower())] + [photos, lighting]
         for source in sorted(sources, key=lambda p: p.name.lower()):
             with source.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()[:16]
@@ -188,6 +248,8 @@ if __name__ == '__main__':
     parser.add_argument('--notes', default='')
     parser.add_argument('--zone-photos', action='store_true', help='publish only the zone-photo data update')
     parser.add_argument('--data', help='a game Data folder to publish instead of an executable')
+    parser.add_argument('--lighting', action='store_true', help='with --data, publish only the zone-lighting update built from it')
+    parser.add_argument('--addons', action='store_true', help="publish ASR's addons as zips on the release")
     parser.add_argument('--tag', default=GAME_TAG)
     parser.add_argument('--describe', action='store_true', help='only retitle the release and rewrite its notes for --version')
     args = parser.parse_args()
@@ -195,6 +257,10 @@ if __name__ == '__main__':
         describe(args.version, args.notes, args.tag)
     elif args.zone_photos:
         publish_zone_photos(args.tag)
+    elif args.addons:
+        publish_addons(args.tag)
+    elif args.lighting and args.data:
+        publish_lighting(args.data, args.tag)
     elif args.data:
         publish_data(args.data, args.tag)
     elif args.exe and args.version:

@@ -24,6 +24,8 @@ namespace ASR.Setup {
     public sealed class Part { public string url; public long size; }
     public sealed class GameFile { public string name; public string version; public long size; public string sha256; public Part[] parts; }
     public sealed class GameFiles { public GameFile[] patches; }
+    public sealed class Addon { public string name; public string url; public long size; public string sha256; }
+    public sealed class Addons { public Addon[] addons; }
 
     public static class Game {
         // ASR_RELEASE_URL points the installer at a test copy of the release; the update helper uses the game's own update URL.
@@ -216,11 +218,63 @@ namespace ASR.Setup {
                 if (Environment.GetEnvironmentVariable(setting.Key) == null) start.EnvironmentVariables[setting.Key] = setting.Value;
             start.EnvironmentVariables["WOW_ROGUE_COOP_URL"] = relay.GameUrl;
             Process game = Process.Start(start);
+            // The game reads its addons as each run starts, so a sync that finishes after the menu is up still counts.
+            Task.Run(() => {
+                try { SyncAddons(Path.GetDirectoryName(exe), log); }
+                catch (Exception error) { if (error is OutOfMemoryException) throw; log("addons: " + error.GetType().Name + ": " + error.Message); }
+            });
             while (game != null) {
                 game.WaitForExit(); game.Dispose();
                 game = Restarted(exe);
             }
             return 0;
+        }
+
+        // ASR's own addons (addons.json on the release) into the game's AddOns folder, where its AddOns page lists them
+        // for the player to turn on. Each carries a marker with its zip's hash: an unchanged one is left alone, a changed
+        // one replaced whole, and one the release no longer lists removed. Folders without a marker are the player's.
+        public const string AddonMarker = ".asr-addon";
+        public static void SyncAddons(string folder, Action<string> log) {
+            string root = Path.Combine(folder, "benilla-config", "AddOns");
+            Directory.CreateDirectory(root);
+            Addon[] listed = Manifest<Addons>("addons.json").addons ?? new Addon[0];
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (Addon addon in listed) {
+                if (addon == null || addon.name == null || !Regex.IsMatch(addon.name, @"^[A-Za-z0-9_]{1,40}$") || addon.url == null ||
+                    !Regex.IsMatch(addon.url, @"^[A-Za-z0-9._-]{1,120}$") || addon.size < 1 || addon.size > 16 << 20 || addon.sha256 == null)
+                    throw new InvalidDataException("Invalid addons manifest.");
+                names.Add(addon.name);
+                string target = Path.Combine(root, addon.name), marker = Path.Combine(target, AddonMarker);
+                if (File.Exists(marker) && File.ReadAllText(marker).Trim() == addon.sha256) continue;
+                // A same-named folder without our marker is the player's own copy: never overwrite it.
+                if (Directory.Exists(target) && !File.Exists(marker)) { log("addons: kept the player's own " + addon.name); continue; }
+                byte[] zip = Download(Release + addon.url, addon.size);
+                string hash;
+                using (SHA256 sha = SHA256.Create()) hash = BitConverter.ToString(sha.ComputeHash(zip)).Replace("-", "").ToLowerInvariant();
+                if (zip.LongLength != addon.size || hash != addon.sha256) throw new InvalidDataException(addon.name + " failed verification.");
+                string fresh = target + ".new";
+                if (Directory.Exists(fresh)) Directory.Delete(fresh, true);
+                Directory.CreateDirectory(fresh);
+                string inside = Path.GetFullPath(fresh) + Path.DirectorySeparatorChar;
+                using (var archive = new ZipArchive(new MemoryStream(zip), ZipArchiveMode.Read))
+                    foreach (ZipArchiveEntry entry in archive.Entries) {
+                        if (entry.FullName.EndsWith("/")) continue;
+                        if (!entry.FullName.StartsWith(addon.name + "/")) throw new InvalidDataException(addon.name + " has files outside its folder.");
+                        string path = Path.GetFullPath(Path.Combine(fresh, entry.FullName.Substring(addon.name.Length + 1)));
+                        if (!path.StartsWith(inside, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException(addon.name + " has an unsafe path.");
+                        Directory.CreateDirectory(Path.GetDirectoryName(path));
+                        using (Stream input = entry.Open()) using (FileStream output = File.Create(path)) input.CopyTo(output);
+                    }
+                File.WriteAllText(Path.Combine(fresh, AddonMarker), addon.sha256);
+                if (Directory.Exists(target)) Directory.Delete(target, true);
+                Directory.Move(fresh, target);
+                log("addons: installed " + addon.name);
+            }
+            foreach (string installed in Directory.GetDirectories(root))
+                if (File.Exists(Path.Combine(installed, AddonMarker)) && !names.Contains(Path.GetFileName(installed))) {
+                    Directory.Delete(installed, true);
+                    log("addons: removed " + Path.GetFileName(installed));
+                }
         }
 
         // After installing an update the game restarts itself, with this same environment and so the same relay.

@@ -10,6 +10,8 @@ if /i "%~1"=="play" goto play
 if /i "%~1"=="setup" goto setup
 if /i "%~1"=="publish-game" if not "%~3"=="" goto publish_game
 if /i "%~1"=="publish-zone-photos" goto publish_zone_photos
+if /i "%~1"=="publish-lighting" if not "%~2"=="" goto publish_lighting
+if /i "%~1"=="publish-addons" goto publish_addons
 if /i "%~1"=="publish-data" if not "%~2"=="" goto publish_data
 if /i "%~1"=="stage" if not "%~3"=="" goto stage
 if /i "%~1"=="test" goto test
@@ -21,6 +23,8 @@ echo   asr play                      open the game on this PC with co-op on our 
 echo   asr setup                     build downloads\ASR-Setup.exe, the installer players download
 echo   asr publish-game EXE VERSION ["NOTES"]  send a game executable to every player
 echo   asr publish-zone-photos       update zone photos without republishing other data
+echo   asr publish-lighting DATA-FOLDER  update the brighter zone lighting without republishing other data
+echo   asr publish-addons            put ASR's addons (launcher\addon) on the release as zips
 echo   asr publish-data DATA-FOLDER  send the game's data files (*.MPQ) to every player
 echo   launcher\set_game_icon.ps1 -Exe EXE        put the ASR icon on a game executable before publishing it
 echo.
@@ -47,6 +51,12 @@ exit /b
 exit /b
 :publish_zone_photos
 "%PY%" launcher\game_release.py --zone-photos
+exit /b
+:publish_lighting
+"%PY%" launcher\game_release.py --lighting --data "%~2"
+exit /b
+:publish_addons
+"%PY%" launcher\game_release.py --addons
 exit /b
 :publish_data
 "%PY%" launcher\game_release.py --data "%~2"

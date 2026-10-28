@@ -86,3 +86,19 @@ The decorative zone-tier dots are omitted. The scroll viewport has 20 px of top 
 Locked-zone requirement lines render in red, independently of the normal zone heading colour. The actual unlock checks are unchanged.
 
 To publish only the zone photos while retaining all other data entries, run `.\asr publish-zone-photos` before publishing the game. The existing base-data manifest and earlier game parts stay available to players already downloading.
+
+## Zone lighting
+
+Duskwood and other gloomy or night-time zones author their light colours so dark that walls blend into the ground. `launcher/zone_light.py` builds `patch-Y.MPQ`, which overrides only `DBFilesClient\LightIntBand.dbc`: in every zone and at every time of day, the sun diffuse, ambient and fog colours (rows 0, 1 and 7) darker than a minimum brightness are raised to it, keeping their hue where they can. Brighter colours, the sky and water are unchanged.
+
+The same archive makes the arena's red boundary walls ("Edge of the Battlefield") visible in every zone. They are drawn with the `AuraRed`, `AuraRedShort`, `AuraRedTall` and `AuraRedVeryTall` glow models: additive red smoke at 25-45% strength, covered by the zone's fog. The archive carries those models at full strength, with their colours at full brightness, and unfogged and unlit, so neither fog nor a dark zone hides them.
+
+The table and models are read from the game's own Data folder at publish time, so no game data enters the repository.
+
+`publish-data` builds and includes it. To publish only the lighting while retaining all other data entries, run `.\asr publish-lighting path\to\Data`. To try it locally, build it with `tools\python\python.exe launcher\zone_light.py path\to\Data --out path\to\Data\patch-Y.MPQ`; delete that file to go back to the original lighting.
+
+## ASR addons
+
+`launcher/addon/` holds ASR's own addons for the game's AddOns system (WoW 1.12 Lua and XML, read from `benilla-config\AddOns` in the game folder). `ASR_HUD` shows the run's chests on the minimap, from the game's `AZS_CHESTS` addon data, and a health bar with numbers for every boss and lair guardian alive, from `AZS_GetBosses()` and `AZS_GetGuardians()`. Those bars replace the game's own thin ones, so the addon turns off Interface > Show Boss Bars when it loads; turn it back on after removing the addon.
+
+`.\asr publish-addons` uploads each addon as a zip (its folder at the root) to the `game` release, then `addons.json` listing each zip's size and SHA-256. Every time Play ASR starts the game it also syncs that list into `benilla-config\AddOns` in the background (`Game.SyncAddons`): a new or changed addon is downloaded, verified and swapped in whole, and one the release no longer lists is removed. Each installed folder carries a `.asr-addon` marker with its zip's hash; folders without one are the player's own and are never touched, even under the same name. The game reads addons as each run starts, so players see them on Options > AddOns at their next run and turn them on there. Data patches cannot carry addons: the game loads them only from the AddOns folder. Play ASR is the same program as ASR-Setup, so players get the sync with the next `publish-game` (its update helper refreshes Play ASR) or a fresh install.
