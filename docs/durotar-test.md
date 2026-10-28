@@ -33,7 +33,10 @@ Durotar, then the rest (every zone keeps its index, so saved progress is
 unchanged), treats Durotar as unlocked in their lock checks, and gives it
 Elwynn's tier in the Armory. A victory in either starter raises the class's
 unlocked count to two only when it is lower, opening Duskwood without
-reducing any progress.
+reducing any progress. Boss loot is assigned per tier
+across the original zones, which never included Durotar, so its bosses had no
+pieces; the loot lookup now reads Durotar as Elwynn, so each Durotar boss drops
+the matching Elwynn piece in runs and the Armory.
 
 ## Confirmed behavior
 

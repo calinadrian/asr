@@ -298,6 +298,12 @@ def apply(source, profile=PROFILE):
         bridge(h, Code().raw(before).raw(f'4883fe{count:02x}').jcc('ne', 'done')           # cmp rsi, 12
                .raw(b'\xc6\x85' + before[6:10] + b'\0').label('done').jmp(h['resume']))  # locked = 0
 
+    # Boss loot is assigned per tier across the original zones; Durotar's bosses drop the matching
+    # Elwynn pieces, for runs and the Armory alike.
+    h = hooks['loot_zone']
+    bridge(h, Code().raw(f'4983f8{count:02x}').jcc('ne', 'zone').raw('4531c0')            # cmp r8, 12 / xor r8d, r8d
+           .label('zone').raw(h['before']).jmp(h['resume']))
+
     # The Armory's drop tables list zones the same way, with the index in a stack slot.
     h = hooks['drop_order']
     before = bytes.fromhex(h['before'])  # mov rcx, [rbp+record] / add rcx, 240 / inc qword [rbp+index]

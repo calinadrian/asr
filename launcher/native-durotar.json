@@ -176,12 +176,6 @@
    "name": "thirteenth boss table bound"
   },
   {
-   "rva": 95067105,
-   "before": "4983f80c",
-   "after": "4983f80d",
-   "name": "thirteenth boss loot table bound"
-  },
-  {
    "rva": 96958358,
    "before": "4883f90c",
    "after": "4883f90d",
@@ -356,6 +350,12 @@
    "accepted": 1990536,
    "resume": 1989933,
    "before": "488b85d0060000493b04240f825b020000"
+  },
+  "loot_zone": {
+   "rva": 95067099,
+   "size": 10,
+   "resume": 95067109,
+   "before": "4889ce8855374983f80c"
   }
  },
  "rank_calls": [
