@@ -42,7 +42,7 @@ The version must keep the length of the current one (`0.120.6`, not `0.121.10`),
 
 Players who installed with `ASR.exe` 0.1.8 or earlier have a launcher that starts the game with the same settings and keeps a helper running that forwards co-op through the certificate it pins on TCP 47770. It updates itself from GitHub Releases on [calinadrian/asr](https://github.com/calinadrian/asr/releases): `releases/latest/download/latest-envelope.json`, then `releases/download/v<version>/<sha256>.zip`. Launchers up to 0.1.4 read `https://hassian.duckdns.org:47770/launcher/latest-envelope.json`, which the server mirrors from GitHub. Each release is checked against the release-verification public key the launcher embeds.
 
-The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7, 0.120.8, 0.120.9, 0.121.0, 0.121.1, 0.124.0 and 0.124.1 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
+The server supports games 0.120.1, 0.120.4, 0.120.5, 0.120.6, 0.120.7, 0.120.8, 0.120.9, 0.121.0, 0.121.1, 0.124.0, 0.124.1 and 0.124.2 / protocol 3 and enforces four people per room. Choose four in the game's Host form; its picker still offers five, but the server refuses a fifth player.
 
 ## Publish an old-launcher update
 
