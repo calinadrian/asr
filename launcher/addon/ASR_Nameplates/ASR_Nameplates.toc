@@ -1,0 +1,6 @@
+## Interface: 11200
+## Title: ASR Simple Nameplates
+## Notes: Compact health bars with names on hover. /asrplates for options.
+## Version: 1.0.0
+## SavedVariables: ASR_NameplatesDB
+Nameplates.lua
