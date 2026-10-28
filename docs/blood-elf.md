@@ -238,6 +238,66 @@ file, geoset and texture they name, and the build stops on any gap. The first bu
 (1,501 files, 35,257,175 bytes) also read back by name through the MPQ reader, and
 both extracted models passed the v256 checks. The archive is not installed or published.
 
+## Executable patch (`launcher/bloodelf_patch.py`)
+
+`bloodelf_patch.py ASR.exe --out ASR-bloodelf.exe` applies to the 0.124.3 layout after
+`durotar_patch` and refuses anything else. `native-bloodelf.json` lists every site; it was
+generated from the installed game with each site asserted against its expected
+instruction and target. The patch adds an `.asrrace` section, appends its relocations to
+the directory Durotar wrote, and re-applying it changes nothing.
+
+| Mechanism | Before | After |
+|---|---|---|
+| Race catalog | 8 records at `0x6fe7bc0`, slice `(records, 8)` at `0x6feff20` | 9 records (Blood Elf last) in `.asrrace`, slice count 9 |
+| Race ID → record | 5 pointer tables for IDs 2–8, 13 bounds `≤ 6` / `< 7`, Human fallback | one 9-entry table for IDs 2–10 (9 stays Human), bounds `≤ 8` / `< 9` |
+| Loops over all races | 3 × `cmp rax, 0x2c0` | `0x318` |
+| Faction template (IDs 2–8, default 1) | 2, 3, 4, 5, 6, 115, 116 | + 1 (race 9), 5 (Blood Elf, the Undead's) |
+| Player display IDs | female / male tables, default 50 / 49 | + 15475 / 15476 |
+| Language / team | Orcish 1, Common 7 | Blood Elf 1 (Horde) |
+| Horde test | `0x59 >> (race - 2)` for races below 9 | a bridge using mask `0x159` below 11 |
+| Ability catalog | 113 records of 120 bytes; 55 references, 44 `cmp ..., 0x34f8` | 114, with `arcane_torrent`; bounds `0x3570` |
+| Locales | 14 embedded JSON files | each gains `race.bloodelf.name`, `line1`–`line3` and `ability.arcane_torrent.name` |
+
+The Blood Elf record:
+- **Passives:** damage reduction +5% (kind 5) and cooldowns −5% (kind 2).
+- **Active:** `arcane_torrent`.
+
+Arcane Torrent is War Stomp's ability record with:
+- the name "Arcane Torrent" and the icon `Spell_Shadow_Teleport` (present in 1.12);
+- spell 1449 (Arcane Explosion) for its visual;
+- a 20 s cooldown.
+
+It keeps War Stomp's stun: 2 s, radius 8.
+
+The locale lines reuse each language's own Tauren, Night Elf and Gnome phrasing, with the
+racial name and number swapped. The race and racial names are the official WoW
+localizations where they exist.
+
+Known gaps, left for the in-game check:
+- **Cosmetic engine tables:** the temporary portrait name, the item "races allowed"
+  tooltip and the race-name list beside `CharStartOutfit` stop at 8. Blood Elf gets
+  their fallbacks.
+- **Field `+0x75` tables:** sixteen `race - 2`-shaped tables read field `+0x75` of a
+  non-player struct; no class lookup reads `+0x74` beside it. They are treated as not
+  racial and left alone.
+- **Armory unlock and saves:** the per-race unlock and the save format are not mapped.
+  Saves are encrypted (`RSE1`).
+
+### In-game check
+
+The game resolves its save folder from the `APPDATA` environment variable plus
+`wenilla-rogue`. For a local test, use a copy of the game:
+- hard-link its MPQs into a new folder;
+- add `patch-W.MPQ` and the patched exe;
+- change that exe's `APPDATA` folder name to `wenilla-rogux` (same length);
+- start it with `APPDATA` pointing at an empty folder.
+
+The player's characters are then never read or written.
+
+A patched copy started this way (2026-10-28) ran to its menu, responded and logged no
+crash. The picker, a Blood Elf run, co-op and saving have not been checked yet: the game's
+GPU-rendered window can't be captured for automated inspection.
+
 ## Proposed first playable pass
 
 - DBC race ID 10, key `BLOODELF`, name "Blood Elf", in every supported locale.

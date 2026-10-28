@@ -119,7 +119,7 @@ Blood Elf is planned as a ninth playable race (DBC race 10). Its models and text
 tools\python\python.exe launcher\bloodelf_assets.py "path\to\World of Warcraft" --installed path\to\Data --out downloads\bloodelf\patch-W.MPQ
 ```
 
-The game does not offer the race until its executable is patched, which is not written yet, so the archive is not published. Run `python -m unittest discover -s launcher -p "test_bl*.py"` and `-p test_retail_m2.py` for the table, converter and texture checks.
+`launcher/bloodelf_patch.py` adds the race to a 0.124.3 executable that already has the Durotar patch, using the reviewed sites in `native-bloodelf.json`: `tools\python\python.exe launcher\bloodelf_patch.py ASR.exe --out ASR-bloodelf.exe`. Neither the patch nor the archive is part of `publish-game` yet; they wait for an in-game check (see `docs/blood-elf.md`). Run `python -m unittest discover -s launcher -p "test_bl*.py"` and `-p test_retail_m2.py` for the table, converter and texture checks.
 
 ## ASR addons
 
