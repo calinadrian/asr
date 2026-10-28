@@ -62,9 +62,12 @@ function CreateFrame(_,name,parent)
 end
 UIParent=frame(); UIParent.width=1000; UIParent.height=800
 PlayerFrame=frame(); PlayerFrame.points={{'TOPLEFT',UIParent,'TOPLEFT',20,-20}}
+TargetFrame=frame(); TargetFrame.points={{'TOPLEFT',UIParent,'TOPLEFT',300,-20}}
+TargetFrame.scripts.OnClick=function() end; nativeTargetClick=TargetFrame.scripts.OnClick
 local click=function() end; PlayerFrame.scripts.OnClick=click; nativeClick=click
 function command(c) SlashCmdList.ASRPLAYER(c) end
 function enter() frames[1].scripts.OnEvent() end
+function targetEnter() frames[2].scripts.OnEvent() end
 function drag(x,y)
  ASR_PlayerMoverHandle.scripts.OnDragStart()
  PlayerFrame.x=x; PlayerFrame.y=y
@@ -145,6 +148,36 @@ for _,dot in ipairs(ASR_PlayerMoverToggle.textures) do assert(not dot.shown) end
 ASR_PlayerMoverToggle.scripts.OnClick()
 assert(not ASR_PlayerMoverToolbar.shown and ASR_PlayerMoverToggle.width==22)
 for _,dot in ipairs(ASR_PlayerMoverToggle.textures) do assert(dot.shown) end
+''')
+
+    def test_target_drag_saves_independently_and_preserves_native_clicks(self):
+        self.lua.execute('''ASR_PlayerMoverDB={x=0.3,y=0.4}; enter(); targetEnter()
+assert(ASR_TargetMoverToggle.shown and not ASR_TargetMoverHandle.shown)
+ASR_TargetMoverToggle.scripts.OnClick()
+ASR_TargetMoverHandle.scripts.OnDragStart(); TargetFrame.x=700; TargetFrame.y=500
+ASR_TargetMoverHandle.scripts.OnDragStop(); ASR_TargetMoverToggle.scripts.OnClick()
+assert(ASR_PlayerMoverDB.target.x==0.7 and ASR_PlayerMoverDB.target.y==0.625)
+assert(ASR_PlayerMoverDB.x==0.3 and ASR_PlayerMoverDB.y==0.4)
+assert(TargetFrame.scripts.OnClick==nativeTargetClick and not TargetFrame.userPlaced)
+targetEnter(); assert(TargetFrame.points[1][4]==700)
+''')
+
+    def test_frame_resets_do_not_erase_other_position(self):
+        self.lua.execute('''ASR_PlayerMoverDB={x=0.3,y=0.4,target={x=0.7,y=0.625}}
+enter(); targetEnter(); command('reset')
+assert(ASR_PlayerMoverDB.x==nil and ASR_PlayerMoverDB.target.x==0.7)
+ASR_PlayerMoverDB.x=0.3; ASR_PlayerMoverDB.y=0.4
+SlashCmdList.ASRTARGET('reset')
+assert(ASR_PlayerMoverDB.x==0.3 and ASR_PlayerMoverDB.target.x==nil)
+assert(TargetFrame.points[1][1]=='TOPLEFT' and TargetFrame.points[1][4]==300)
+''')
+
+    def test_target_can_appear_later_and_saved_player_settings_survive(self):
+        self.lua.execute('''local target=TargetFrame; TargetFrame=nil
+ASR_PlayerMoverDB={x=0.3,y=0.4}; enter(); targetEnter()
+assert(ASR_TargetMoverToggle==nil and ASR_PlayerMoverDB.x==0.3)
+TargetFrame=target; targetEnter()
+assert(ASR_TargetMoverToggle.shown and ASR_PlayerMoverDB.x==0.3)
 ''')
 
 

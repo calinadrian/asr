@@ -1,15 +1,20 @@
--- An edit-mode overlay leaves the native player frame's scripts untouched.
+-- Each unit frame owns its controls and position; native scripts stay untouched.
+local function Mover(getFrame, prefix, key, title, slash)
 local player, handle, original, toggle, reset, toolbar;
 local grip = {};
 local unlocked, moving = false, false;
 
 local function Say(text)
-    if ( DEFAULT_CHAT_FRAME ) then DEFAULT_CHAT_FRAME:AddMessage("ASR Player Mover: " .. text); end
+    if ( DEFAULT_CHAT_FRAME ) then DEFAULT_CHAT_FRAME:AddMessage("ASR Frame Mover: " .. text); end
 end
 
 local function Settings()
     if ( type(ASR_PlayerMoverDB) ~= "table" ) then ASR_PlayerMoverDB = {}; end
     local db = ASR_PlayerMoverDB;
+    if ( key ) then
+        if ( type(db[key]) ~= "table" ) then db[key] = {}; end
+        db = db[key];
+    end
     if ( type(db.x) ~= "number" or type(db.y) ~= "number" or
          db.x ~= db.x or db.y ~= db.y ) then db.x = nil; db.y = nil; end
     return db;
@@ -59,7 +64,8 @@ local function Edit(value)
 end
 
 local function Reset()
-    Edit(false); ASR_PlayerMoverDB = {};
+    Edit(false);
+    local db = Settings(); db.x = nil; db.y = nil;
     player:ClearAllPoints();
     for i = 1, table.getn(original) do player:SetPoint(unpack(original[i])); end
     player:SetUserPlaced(false);
@@ -67,15 +73,15 @@ end
 
 local function Initialize()
     if ( player ) then return true; end
-    if ( not PlayerFrame or not UIParent ) then return false; end
-    player = PlayerFrame;
+    if ( not getFrame() or not UIParent ) then return false; end
+    player = getFrame();
     original = {};
     for i = 1, player:GetNumPoints() do
         original[i] = { player:GetPoint(i) };
     end
     player:SetMovable(true);
     player:SetClampedToScreen(true);
-    handle = CreateFrame("Frame", "ASR_PlayerMoverHandle", player);
+    handle = CreateFrame("Frame", prefix .. "Handle", player);
     handle:SetAllPoints(player);
     handle:SetFrameLevel(player:GetFrameLevel() + 20);
     handle:EnableMouse(true);
@@ -89,7 +95,7 @@ local function Initialize()
     handle:SetScript("OnDragStop", Stop);
     handle:SetScript("OnHide", Stop);
     handle:Hide();
-    toolbar = CreateFrame("Frame", "ASR_PlayerMoverToolbar", player);
+    toolbar = CreateFrame("Frame", prefix .. "Toolbar", player);
     toolbar:SetWidth(108); toolbar:SetHeight(24);
     toolbar:SetPoint("BOTTOMRIGHT", player, "BOTTOMRIGHT", -6, 2);
     toolbar:SetFrameLevel(handle:GetFrameLevel() + 1);
@@ -100,7 +106,7 @@ local function Initialize()
     toolbar:SetBackdropBorderColor(0.5, 0.46, 0.36, 0.85);
     toolbar:Hide();
     -- A quiet six-dot grip rather than a permanent action button.
-    toggle = CreateFrame("Button", "ASR_PlayerMoverToggle", player);
+    toggle = CreateFrame("Button", prefix .. "Toggle", player);
     toggle:SetWidth(22); toggle:SetHeight(22);
     toggle:SetPoint("BOTTOMRIGHT", player, "BOTTOMRIGHT", -10, 3);
     toggle:SetFrameLevel(handle:GetFrameLevel() + 1);
@@ -122,7 +128,7 @@ local function Initialize()
         toggle:SetAlpha(1);
         if ( GameTooltip ) then
             GameTooltip:SetOwner(toggle, "ANCHOR_TOPLEFT");
-            GameTooltip:SetText(unlocked and "Save position" or "Move character frame", 1, 0.82, 0.3);
+            GameTooltip:SetText(unlocked and "Save position" or ("Move " .. title), 1, 0.82, 0.3);
             GameTooltip:AddLine(unlocked and "Click Done to lock the frame." or "Click the grip, then drag the frame.", 1, 1, 1);
             GameTooltip:Show();
         end
@@ -131,7 +137,7 @@ local function Initialize()
         if ( not unlocked ) then toggle:SetAlpha(0.6); end
         if ( GameTooltip ) then GameTooltip:Hide(); end
     end);
-    reset = CreateFrame("Button", "ASR_PlayerMoverReset", toolbar);
+    reset = CreateFrame("Button", prefix .. "Reset", toolbar);
     reset:SetWidth(48); reset:SetHeight(22);
     reset:SetPoint("RIGHT", toggle, "LEFT", -4, 0);
     reset:SetFrameLevel(toggle:GetFrameLevel());
@@ -149,20 +155,21 @@ local function Initialize()
     return true;
 end
 
-SLASH_ASRPLAYER1 = "/asrplayer";
-SlashCmdList["ASRPLAYER"] = function(message)
-    if ( not Initialize() ) then Say("The character frame is not available yet. Try again inside a run."); return; end
+local commandKey = key and "ASRTARGET" or "ASRPLAYER";
+_G["SLASH_" .. commandKey .. "1"] = slash;
+SlashCmdList[commandKey] = function(message)
+    if ( not Initialize() ) then Say("The " .. title .. " is not available yet. Try again inside a run."); return; end
     local command = string.lower(message or "");
     if ( command == "unlock" ) then
         Edit(true);
-        Say("Drag the highlighted character frame, then click Done.");
+        Say("Drag the highlighted " .. title .. ", then click Done.");
     elseif ( command == "lock" ) then
         Edit(false); Say("Position locked.");
     elseif ( command == "reset" ) then
         Reset();
         Say("Original position restored.");
     else
-        Say("/asrplayer unlock, /asrplayer lock, /asrplayer reset");
+        Say(slash .. " unlock, " .. slash .. " lock, " .. slash .. " reset");
     end
 end;
 
@@ -170,6 +177,7 @@ local driver = CreateFrame("Frame");
 driver:RegisterEvent("PLAYER_ENTERING_WORLD");
 driver:RegisterEvent("DISPLAY_SIZE_CHANGED");
 driver:RegisterEvent("UI_SCALE_CHANGED");
+if ( key == "target" ) then driver:RegisterEvent("PLAYER_TARGET_CHANGED"); end
 driver:SetScript("OnEvent", function()
     Stop(); unlocked = false;
     if ( Initialize() ) then
@@ -178,3 +186,7 @@ driver:SetScript("OnEvent", function()
         if ( db.x and db.y ) then Place(db.x, db.y); end
     end
 end);
+end
+
+Mover(function() return PlayerFrame; end, "ASR_PlayerMover", nil, "character frame", "/asrplayer");
+Mover(function() return TargetFrame; end, "ASR_TargetMover", "target", "enemy target frame", "/asrtarget");

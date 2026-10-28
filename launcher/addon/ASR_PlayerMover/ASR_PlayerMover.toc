@@ -1,6 +1,6 @@
 ## Interface: 11200
 ## Title: ASR Player Frame Mover
-## Notes: Click the small grip on your character frame to reposition it. Click Done to save.
-## Version: 1.2.0
+## Notes: Move your character and selected enemy frames with subtle grips. Each position is saved separately.
+## Version: 1.3.0
 ## SavedVariables: ASR_PlayerMoverDB
 PlayerMover.lua
