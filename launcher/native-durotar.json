@@ -1,6 +1,12 @@
 {
  "format": 2,
  "layout": "0.124",
+ "achievement_points": {
+  "table": 124457136,
+  "reference": 96123511,
+  "before": "488d053256b001",
+  "original": [10, 10, 10, 10, 10, 15, 15, 15, 15, 20, 25, 30]
+ },
  "catalog": 117336576,
  "zones": 12,
  "record": 240,

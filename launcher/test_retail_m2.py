@@ -119,6 +119,16 @@ class ConverterTests(unittest.TestCase):
         self.assertAlmostEqual(uvs[1][0], 0.25)              # face: moved into the classic strip
         self.assertAlmostEqual(uvs[1][1], 0.625 + 0.375 * 0.5)
 
+    def test_portrait_bounds_follow_retained_vertices_instead_of_retail_effects(self):
+        model, skeleton, skin = retail_files()
+        retail = bytearray(model)
+        # A retail global box can span discarded wings/effects far above the humanoid.
+        struct.pack_into('<7f', retail, 8 + 0xA0, -10, -10, -1, 10, 10, 9, 17)
+        result = retail_m2.Converter(bytes(retail), skeleton, skin, 'Test', {0}, {0: 0}, []).convert()
+        bounds = struct.unpack_from('<7f', result, 0xB4)
+        self.assertEqual(bounds[:6], (0, 0, 0, 1, 0, 1))
+        self.assertAlmostEqual(bounds[6], 0.5**0.5)
+
     def test_refuses_more_indices_than_a_1_12_view_holds(self):
         # Two geosets of 32769 indices each: either fits alone, both together do not.
         files = retail_files(triangles=10923)

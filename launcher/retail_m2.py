@@ -318,6 +318,16 @@ class Converter:
             w.array(header, len(values), struct.pack(f'<{len(values)}H', *values))
         w.array(0x9C, 1, struct.pack('<H', 0))
         d[0xB4:0xEC] = m[0xA0:0xD8]
+        # Retail's global box includes excluded Demon Hunter and effect geosets.
+        # The portrait booth aims at this box's center; copying it can put the
+        # entire retained humanoid below the camera. Bound the mesh we actually emit.
+        positions = list(struct.iter_unpack('<3f', b''.join(
+            self.vertices[i:i+12] for i in range(0, len(self.vertices), 48))))
+        if positions:
+            low = [min(p[i] for p in positions) for i in range(3)]
+            high = [max(p[i] for p in positions) for i in range(3)]
+            radius = sum(((b-a)*0.5)**2 for a, b in zip(low, high))**0.5
+            struct.pack_into('<7f', d, 0xB4, *low, *high, radius)
         for header, src, size in ((0xEC, 0xD8, 2), (0xF4, 0xE0, 12), (0xFC, 0xE8, 12)):
             n, o = arr(m, src)
             w.array(header, n, m[o:o + n * size])

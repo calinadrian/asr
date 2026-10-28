@@ -5,6 +5,8 @@ import struct
 import unittest
 
 import bloodelf_patch as bp
+import durotar_patch
+import bloodelf_picker_patch
 
 INSTALLED = Path(r'D:\Personal\ASR\ASR.exe')
 
@@ -43,7 +45,7 @@ class LocaleTests(unittest.TestCase):
 class InstalledGameTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.original = INSTALLED.read_bytes()
+        cls.original = durotar_patch.apply(INSTALLED.read_bytes())
         cls.patched = bp.apply(cls.original)
 
     def read(self, data, rva, size):
@@ -62,6 +64,55 @@ class InstalledGameTests(unittest.TestCase):
         self.assertEqual(self.read(self.patched, name - base, length), b'Blood Elf')
         self.assertEqual(struct.unpack_from('<Q', record, 80)[0], 10)
 
+    def test_appearance_picker_uses_bridges_for_faction_rows_and_class_lists(self):
+        # The visible Appearance row is independent of the nine-record catalog.
+        for name, hook in bp.PROFILE['picker']['hooks'].items():
+            instruction = self.read(self.patched, hook['rva'], len(hook['before'])//2)
+            self.assertEqual(instruction[0], 0xe9, name)
+            target = hook['rva'] + 5 + struct.unpack_from('<i', instruction, 1)[0]
+            race_section = next(s for s in bp.sections(self.patched)[3] if s[0] == bp.SECTION)
+            self.assertTrue(race_section[1] <= target < race_section[1]+race_section[4], name)
+        self.assertEqual(self.patched.count(bloodelf_picker_patch.MARKER), 1)
+
+    def test_customization_loader_includes_blood_elf_after_the_original_eight(self):
+        spec = bp.PROFILE['render']
+        self.assertEqual(self.read(self.patched, spec['ranges_bound']['rva'], 4).hex(),
+                         spec['ranges_bound']['after'])
+        self.assertEqual(self.read(self.patched, spec['ranges_hook']['rva'], 1), b'\xe9')
+
+    def test_character_validation_preserves_blood_elf_at_run_start(self):
+        site = bp.PROFILE['transition']['rva']
+        instruction = self.read(self.patched, site, 5)
+        self.assertEqual(instruction[0], 0xe9)
+        target = site+5+struct.unpack_from('<i', instruction, 1)[0]
+        self.assertEqual(self.read(self.patched, target, 3), bytes.fromhex('83ff0a'))
+        damaged = bytearray(self.patched)
+        for _, va, raw, size, _ in bp.sections(damaged)[3]:
+            if va <= site < va+size:
+                damaged[raw+site-va+1] ^= 1
+                break
+        with self.assertRaisesRegex(ValueError, 'transition'):
+            bp.apply(damaged)
+
+    def test_run_spawn_uses_the_extended_male_and_female_display_tables(self):
+        spawn = bp.PROFILE['transition']['spawn']
+        self.assertEqual(self.read(self.patched, spawn['bound']['rva'], 2).hex(), '3c08')
+        for ref in spawn['references']:
+            targets = [site+7+struct.unpack_from('<i', self.read(self.patched, site, 7), 3)[0]
+                       for site in (ref['rva'], ref['source'])]
+            self.assertEqual(targets[0], targets[1])
+            self.assertIn(struct.unpack('<9I', self.read(self.patched, targets[0], 36))[-1], (15475, 15476))
+
+    def test_damaged_appearance_hooks_are_refused(self):
+        for name, hook in bp.PROFILE['picker']['hooks'].items():
+            data = bytearray(self.patched)
+            for _, va, raw, size, _ in bp.sections(data)[3]:
+                if va <= hook['rva'] < va+size:
+                    data[raw+hook['rva']-va+1] ^= 1
+                    break
+            with self.subTest(hook=name), self.assertRaisesRegex(ValueError, 'picker'):
+                bp.apply(data)
+
     def test_lookups_accept_race_10(self):
         for site, value in bp.PROFILE['races']['bounds']:
             first = self.read(self.patched, site, 1)[0]
@@ -70,6 +121,15 @@ class InstalledGameTests(unittest.TestCase):
 
     def test_reapplying_changes_nothing(self):
         self.assertEqual(bp.apply(self.patched), self.patched)
+
+    def test_blood_elf_and_durotar_points_patches_coexist(self):
+        self.assertEqual(durotar_patch.apply(self.patched), self.patched)
+        spec = durotar_patch.PROFILE['achievement_points']
+        site = spec['reference']
+        target = site + 7 + struct.unpack('<i', self.read(self.patched, site+3, 4))[0]
+        self.assertEqual(struct.unpack('<13I', self.read(self.patched, target, 52)),
+                         (*spec['original'], 10))
+        self.assertNotIn(b'.asrachv', [s[0] for s in bp.sections(self.patched)[3]])
 
     def test_a_game_without_durotar_is_refused(self):
         data = bytearray(self.original)

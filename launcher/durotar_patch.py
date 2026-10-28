@@ -104,6 +104,67 @@ def sections(data):
     return pe, optional, table, found
 
 
+def achievement_points(source, profile):
+    """Extend the separate achievement table, including on existing v2 installations.
+
+    The native achievement builder iterates our expanded zone catalog but still indexes
+    twelve u32 scores. Index 12 otherwise reads the following string, 'type', as a score.
+    A RIP-relative reference needs no new absolute relocations or executable code.
+    """
+    data = bytearray(source)
+    pe, optional, table, secs = sections(data)
+    spec = profile['achievement_points']
+    expected = struct.pack('<12I', *spec['original'])
+    payload = b'ASR achievement points v1\0'.ljust(32, b'\0') + expected + struct.pack('<I', 10)
+
+    def offset(rva):
+        for _, va, raw, size, _ in secs:
+            if va <= rva < va + size:
+                return raw + rva - va
+        raise ValueError('Unsupported native achievement address')
+
+    if data[offset(spec['table']):offset(spec['table'])+len(expected)] != expected:
+        raise ValueError('Unsupported native achievement points table')
+    at = offset(spec['reference'])
+    zone_index, zone_section = next((i, s) for i, s in enumerate(secs) if s[0] == SECTION)
+    _, zone_va, zone_raw, zone_size, zone_virtual = zone_section
+    existing = [s for s in secs if s[0] == b'.asrachv']
+    target = spec['reference'] + 7 + struct.unpack_from('<i', data, at+3)[0]
+    patched_reference = data[at:at+3] == b'\x48\x8d\x05'
+    if existing:
+        # Migrate the earlier standalone table into the adjacent zone section. This
+        # frees the last PE header for Blood Elf without moving any data or pointers.
+        _, va, raw, size, virtual = existing[0]
+        if (len(existing) != 1 or virtual != len(payload)
+                or data[raw:raw+virtual] != payload or not patched_reference or target != va + 32
+                or va != zone_va + zone_size or raw != zone_raw + zone_size):
+            raise ValueError('Unknown native achievement points patch')
+        struct.pack_into('<I', data, table + zone_index*40 + 8, zone_size + virtual)
+        struct.pack_into('<I', data, table + zone_index*40 + 16, zone_size + size)
+        index = secs.index(existing[0])
+        start, end = table + index*40, table + len(secs)*40
+        data[start:end] = data[start+40:end] + bytes(40)
+        struct.pack_into('<H', data, pe+6, len(secs)-1)
+    elif patched_reference and zone_va + 32 <= target < zone_va + zone_virtual:
+        marker = offset(target - 32)
+        if target - 32 + len(payload) > zone_va + zone_virtual or data[marker:marker+len(payload)] != payload:
+            raise ValueError('Unknown native achievement points patch')
+        return bytes(data)
+    else:
+        if data[at:at+7].hex() != spec['before']:
+            raise ValueError('Unsupported native achievement points reference')
+        # Keep the table in unused zero padding of the existing zone section. No
+        # extra section header is needed, leaving room for the Blood Elf patch.
+        pos = align(zone_virtual, 8)
+        if pos + len(payload) > zone_size or any(data[zone_raw+zone_virtual:zone_raw+pos+len(payload)]):
+            raise ValueError('No room for the achievement points table in the zone section')
+        data[zone_raw+pos:zone_raw+pos+len(payload)] = payload
+        struct.pack_into('<I', data, table + zone_index*40 + 8, pos + len(payload))
+        struct.pack_into('<i', data, at+3, zone_va + pos + 32 - spec['reference'] - 7)
+    struct.pack_into('<I', data, optional+64, 0)
+    return bytes(data)
+
+
 def apply(source, profile=PROFILE):
     data = bytearray(source)
     pe, optional, table, secs = sections(data)
@@ -125,7 +186,7 @@ def apply(source, profile=PROFILE):
         hook = profile['hooks']['lookup']['rva']
         if len(existing) > 1 or data[raw:raw+len(MARKER)] != MARKER or read(hook, 1) != b'\xe9':
             raise ValueError('Unknown Durotar section')
-        return bytes(data)
+        return achievement_points(data, profile)
 
     hooks, catalog_rva, count, record = profile['hooks'], profile['catalog'], profile['zones'], profile['record']
     lookup = profile['lookup']
@@ -358,7 +419,9 @@ def apply(source, profile=PROFILE):
     reloc = put(new_reloc, 4)
 
     raw = align(len(data), file_alignment)
-    size = align(len(payload), file_alignment)
+    # Reserve room for the achievement scores in this section, even when the
+    # relocation directory ends close to a file-alignment boundary.
+    size = align(align(len(payload), 8) + 84, file_alignment)
     data.extend(b'\0'*(raw + size - len(data)))
     data[raw:raw+len(payload)] = payload
     struct.pack_into('<8sIIIIIIHHI', data, header, SECTION, len(payload), cva, size, raw, 0, 0, 0, 0, 0x60000060)
@@ -366,7 +429,7 @@ def apply(source, profile=PROFILE):
     struct.pack_into('<I', data, optional+56, align(cva + len(payload), section_alignment))
     struct.pack_into('<II', data, optional+152, cva + reloc, len(new_reloc))
     struct.pack_into('<I', data, optional+64, 0)
-    return bytes(data)
+    return achievement_points(data, profile)
 
 
 if __name__ == '__main__':

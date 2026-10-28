@@ -103,14 +103,17 @@ def apply(source, profile=PROFILE):
         return bytes(data[at:at+size])
 
     races, abilities = profile['races'], profile['abilities']
+    if not any(s[0] == b'.asrzone' for s in secs):
+        raise ValueError('Apply durotar_patch first: the Blood Elf patch follows it')
     existing = [s for s in secs if s[0] == SECTION]
     if existing:
         _, va, raw, _, _ = existing[0]
         if len(existing) > 1 or data[raw:raw+len(MARKER)] != MARKER:
             raise ValueError('Unknown Blood Elf section')
-        return bytes(data)
-    if not any(s[0] == b'.asrzone' for s in secs):
-        raise ValueError('Apply durotar_patch first: the Blood Elf patch follows it')
+        from bloodelf_picker_patch import apply as apply_picker
+        from bloodelf_render_patch import apply as apply_render
+        from bloodelf_run_patch import apply as apply_run
+        return apply_run(apply_render(apply_picker(data, profile['picker']), profile['render']), profile['transition'])
 
     def lea_target(site):
         ins = read(site, 7)
@@ -313,7 +316,10 @@ def apply(source, profile=PROFILE):
     struct.pack_into('<I', data, optional+56, align(cva + len(payload), section_alignment))
     struct.pack_into('<II', data, optional+152, cva + reloc, len(new_reloc))
     struct.pack_into('<I', data, optional+64, 0)
-    return bytes(data)
+    from bloodelf_picker_patch import apply as apply_picker
+    from bloodelf_render_patch import apply as apply_render
+    from bloodelf_run_patch import apply as apply_run
+    return apply_run(apply_render(apply_picker(data, profile['picker']), profile['render']), profile['transition'])
 
 
 if __name__ == '__main__':

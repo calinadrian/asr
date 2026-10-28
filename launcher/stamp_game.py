@@ -68,6 +68,8 @@ def stamp(source, output, version, build=None):
     # Durotar owns the base-relocation directory, so it follows every other executable patch.
     import durotar_patch
     data = durotar_patch.apply(data)
+    import bloodelf_patch
+    data = bloodelf_patch.apply(data)
     old_code, old_version, at = current(data)
     build = build or subprocess.run(['git', 'rev-parse', '--short=8', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     if len(version) != len(old_version) or not re.fullmatch(r'\d+\.\d+\.\d+', version):

@@ -1,7 +1,7 @@
 # Blood Elf race — integration draft
 
-Status: investigation only. Nothing in the game or its data has been changed. This
-document is not a configuration file loaded by the game.
+Status: locally installed; male and female Armory rendering verified in-game.
+This document is not a configuration file loaded by the game.
 
 ## Confirmed request
 
@@ -239,6 +239,62 @@ file, geoset and texture they name, and the build stops on any gap. The first bu
 both extracted models passed the v256 checks. The archive is not installed or published.
 
 ## Executable patch (`launcher/bloodelf_patch.py`)
+
+### Local installation follow-up (2026-10-28)
+
+Character normalization at RVA `0x5accb95` independently accepted only race IDs
+1–8. It replaced Blood Elf with the class's first allowed race (Human for Rogue)
+when starting a run or normalizing a saved character. The transition patch now
+accepts ID 10 explicitly, preserves AL (the class ID used by the fallback), and
+leaves the original interval and fallback intact for every other ID. Execution
+of the original and corrected native validator across all 256 byte IDs and nine
+classes confirmed that only race 10 changes.
+The spawn handler also had an independent seven-entry display lookup at
+`0x5be6b38` that fell back to Human's display 49/50. Its references now share
+the extended tables already used by the other display lookup, selecting 15476
+for Blood Elf male and 15475 for female. Native execution checks cover all
+256 race IDs in both sexes, preserving original displays for other races.
+An isolated copy of the save then selected Blood Elf in the Armory, saved,
+restarted the executable, and entered Durotar. Native output reported
+`race: Blood Elf` / `bg: Durotar`; the world screenshot showed the Blood Elf
+body and portrait with Arcane Torrent, Magic Resistance and Arcane Affinity.
+The test also caught and reproduced the previous intermediate state in which
+the race/racials were correct but the body still fell back to Human. Evidence
+is under `downloads/bloodelf-run/test` (`transition-*` and `body-*` logs/shots).
+
+The converted models initially loaded (13 preview parts) but were invisible:
+the copied retail global box included omitted Demon Hunter/effect geometry up
+to Z=8.85, placing the preview target well above the retained humanoid. The
+converter now derives the global box from the vertices it emits. Native game
+screenshots confirmed both sexes visible, including different skin/hair choices.
+The customization loader's separate eight-race loop is extended to nine, with
+race 10 synthesized for its last iteration; this restores Blood Elf's actual
+skin, face, hair and color ranges instead of the fallback 1/1 controls. The
+installed executable and `patch-W.MPQ` contain both changes. Evidence is kept
+locally under `downloads/bloodelf-render` (logs and native screenshots).
+
+The Appearance screen builds its own two inline arrays of four race IDs in
+function RVA `0x1fb200`; it does not iterate the race catalog. The picker patch
+extends its Horde loop to five and synthesizes race 10 in the final slot, while
+Alliance retains four. The allowed-race builder at `0x5acc480` also gains race 10
+for paladin, hunter, rogue, priest, mage and warlock, preserving account unlocks.
+Blood Elf uses the portrait atlas cell at x=256, y=64 (male) or y=192 (female);
+`patch-W.MPQ` now supplies the 512x256 source atlas (retail FileDataID 131152).
+`bloodelf_picker_patch.py` upgrades existing race patches in place, adds no PE
+headers, and validates all hooks and payload bytes when reapplied. Native bridge
+execution checks cover both faction loop bounds, five Horde IDs, and eleven
+class lists. The picker and both character models were subsequently verified
+with the native screenshots described above.
+
+The normal `D:\Personal\ASR` installation still had eight race records and no
+`patch-W.MPQ`; only `downloads/bloodelf/game` had the ninth race and its assets.
+Apply `durotar_patch` first to merge the earlier standalone achievement section
+into `.asrzone`, freeing a PE header, then apply `bloodelf_patch` to that current
+executable. This preserves Durotar's corrected 10-point achievement. Install both
+the resulting executable and `patch-W.MPQ`; the archive alone does not add a
+race to the native picker. Asset hashes and DBC/model dependencies were checked
+for all 1,501 packaged files. Gameplay, co-op and save compatibility still require
+in-game verification.
 
 `bloodelf_patch.py ASR.exe --out ASR-bloodelf.exe` applies to the 0.124.3 layout after
 `durotar_patch` and refuses anything else. `native-bloodelf.json` lists every site; it was

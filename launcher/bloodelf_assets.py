@@ -23,6 +23,8 @@ ARCHIVE = 'patch-W.MPQ'
 RACE, FOLDER, PREFIX = 10, 'Character\\BloodElf', 'Be'
 CLASSES = (2, 3, 4, 5, 8, 9)            # paladin, hunter, rogue, priest, mage, warlock
 DISPLAYS = {0: 15476, 1: 15475}         # the IDs TBC gave the Blood Elf player models
+RACE_ATLAS = 'Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Races.blp'
+RACE_ATLAS_FILE = 131152               # 512x256, including Blood Elf at (256, 64/192)
 SEXES = {0: dict(name='Male', model=1100087, skel=1838675, skin=1100099, chr_model=19),
          1: dict(name='Female', model=1100258, skel=1838505, skin=1100298, chr_model=20)}
 # Retail geosets with a 1.12 counterpart, and the retail-only ones that close the body (bare waist,
@@ -233,6 +235,10 @@ def prepare(retail_folder, installed):
         add_rows(dbcs, sex_rows, sex_models)
         for table, d in dbcs.items():
             entries[dbc_name(table)] = d.bytes()
+        atlas = retail.read(RACE_ATLAS_FILE)
+        if struct.unpack_from('<II', atlas, 12) != (512, 256):
+            raise ValueError('Unsupported Blood Elf portrait atlas dimensions')
+        entries[RACE_ATLAS] = atlas
         problems = verify(entries, game)
         if problems:
             raise ValueError('Blood Elf data is inconsistent: ' + '; '.join(problems[:10]))

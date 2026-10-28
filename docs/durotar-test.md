@@ -40,6 +40,21 @@ the matching Elwynn piece in runs and the Armory.
 
 ## Confirmed behavior
 
+### Achievement points correction (2026-10-28)
+
+The achievement builder iterates the expanded thirteen-zone catalog but reads
+a separate twelve-entry `u32` points table at RVA `0x76b10b0`. Durotar's index
+12 reads the following serializer string `type` as `0x65707974` (1,701,869,940
+points). The validated reference at `0x5baba77` now targets a read-only
+table inside `.asrzone` with the original twelve scores and Durotar's 10 points,
+matching Elwynn. The adjacent strings and original scores are preserved.
+Reapplying the patch also upgrades existing `.asrzone` v2 installations and
+validates the points table and reference on subsequent runs. The earlier separate
+`.asrachv` section is merged into its adjacent `.asrzone` section, preserving its
+data addresses and freeing a PE header for the Blood Elf patch. Regression
+tests reproduce the reported value, verify all thirteen corrected scores,
+and cover upgrades, idempotence, and damaged layouts.
+
 - Add Durotar as a thirteenth zone; preserve all twelve existing zones.
 - Durotar and Elwynn Forest are both available to a new character.
 - Completing either starter opens Duskwood, the current next zone, using the
