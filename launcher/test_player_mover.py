@@ -24,6 +24,8 @@ function methods:ClearAllPoints() self.points={} end
 function methods:SetPoint(...) table.insert(self.points,{...}) end
 function methods:GetWidth() return self.width end
 function methods:GetHeight() return self.height end
+function methods:SetWidth(value) self.width=value end
+function methods:SetHeight(value) self.height=value end
 function methods:GetEffectiveScale() return self.scale end
 function methods:GetCenter() return self.x,self.y end
 function methods:GetFrameLevel() return 1 end
@@ -46,7 +48,7 @@ function methods:SetBackdrop(...) end
 function methods:SetBackdropColor(...) end
 function methods:SetBackdropBorderColor(...) end
 function methods:CreateFontString() return frame() end
-function methods:SetText(...) end
+function methods:SetText(text) self.text=text end
 function methods:RegisterEvent(...) end
 function CreateFrame(_,name,parent)
  local f=frame(); f.parent=parent; table.insert(frames,f)
@@ -101,6 +103,28 @@ PlayerFrame=saved; command('unlock'); assert(ASR_PlayerMoverHandle.shown)
     def test_bad_saved_position_uses_original(self):
         self.lua.execute('''ASR_PlayerMoverDB={x='bad',y=1}; enter()
 assert(PlayerFrame.points[1][1]=='TOPLEFT' and ASR_PlayerMoverDB.x==nil)
+''')
+
+    def test_visible_toggle_moves_and_locks_without_chat(self):
+        self.lua.execute('''enter()
+assert(ASR_PlayerMoverToggle.shown and ASR_PlayerMoverToggle.text=='Move')
+assert(not ASR_PlayerMoverReset.shown)
+ASR_PlayerMoverToggle.scripts.OnClick()
+assert(ASR_PlayerMoverHandle.shown and ASR_PlayerMoverReset.shown)
+assert(ASR_PlayerMoverToggle.text=='Done')
+drag(500,400); ASR_PlayerMoverToggle.scripts.OnClick()
+assert(not ASR_PlayerMoverHandle.shown and not ASR_PlayerMoverReset.shown)
+assert(ASR_PlayerMoverToggle.text=='Move' and ASR_PlayerMoverDB.x==0.5)
+assert(PlayerFrame.scripts.OnClick==nativeClick)
+''')
+
+    def test_reset_button_and_world_change_restore_locked_controls(self):
+        self.lua.execute('''enter(); ASR_PlayerMoverToggle.scripts.OnClick()
+drag(500,400); ASR_PlayerMoverReset.scripts.OnClick()
+assert(ASR_PlayerMoverDB.x==nil and PlayerFrame.points[1][1]=='TOPLEFT')
+assert(ASR_PlayerMoverToggle.text=='Move' and not ASR_PlayerMoverHandle.shown)
+ASR_PlayerMoverToggle.scripts.OnClick(); enter()
+assert(ASR_PlayerMoverToggle.text=='Move' and not ASR_PlayerMoverReset.shown)
 ''')
 
 

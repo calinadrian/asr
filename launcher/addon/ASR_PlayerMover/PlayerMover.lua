@@ -1,5 +1,5 @@
 -- An edit-mode overlay leaves the native player frame's scripts untouched.
-local player, handle, original;
+local player, handle, original, toggle, reset;
 local unlocked, moving = false, false;
 
 local function Say(text)
@@ -42,6 +42,23 @@ local function Stop()
     Place(db.x, db.y);
 end
 
+local function Edit(value)
+    Stop();
+    unlocked = value;
+    if ( unlocked ) then
+        handle:Show(); reset:Show(); toggle:SetText("Done");
+    else
+        handle:Hide(); reset:Hide(); toggle:SetText("Move");
+    end
+end
+
+local function Reset()
+    Edit(false); ASR_PlayerMoverDB = {};
+    player:ClearAllPoints();
+    for i = 1, table.getn(original) do player:SetPoint(unpack(original[i])); end
+    player:SetUserPlaced(false);
+end
+
 local function Initialize()
     if ( player ) then return true; end
     if ( not PlayerFrame or not UIParent ) then return false; end
@@ -63,13 +80,27 @@ local function Initialize()
     handle:SetBackdropBorderColor(1, 0.82, 0.3, 1);
     local label = handle:CreateFontString(nil, "OVERLAY", "GameFontNormal");
     label:SetPoint("CENTER", handle, "CENTER", 0, 0);
-    label:SetText("Drag player frame\n/asrplayer lock to finish");
+    label:SetText("Drag to move\nClick Done to lock");
     handle:SetScript("OnDragStart", function()
         if ( unlocked ) then player:StartMoving(); moving = true; end
     end);
     handle:SetScript("OnDragStop", Stop);
     handle:SetScript("OnHide", Stop);
     handle:Hide();
+    -- Small, always-visible entry point; controls sit above the drag overlay.
+    toggle = CreateFrame("Button", "ASR_PlayerMoverToggle", player, "UIPanelButtonTemplate");
+    toggle:SetWidth(56); toggle:SetHeight(22);
+    toggle:SetPoint("BOTTOMRIGHT", player, "BOTTOMRIGHT", -8, 2);
+    toggle:SetFrameLevel(handle:GetFrameLevel() + 1);
+    toggle:SetText("Move");
+    toggle:SetScript("OnClick", function() Edit(not unlocked); end);
+    reset = CreateFrame("Button", "ASR_PlayerMoverReset", player, "UIPanelButtonTemplate");
+    reset:SetWidth(56); reset:SetHeight(22);
+    reset:SetPoint("RIGHT", toggle, "LEFT", -4, 0);
+    reset:SetFrameLevel(toggle:GetFrameLevel());
+    reset:SetText("Reset");
+    reset:SetScript("OnClick", Reset);
+    reset:Hide();
     local db = Settings();
     if ( db.x and db.y ) then Place(db.x, db.y); end
     return true;
@@ -80,15 +111,12 @@ SlashCmdList["ASRPLAYER"] = function(message)
     if ( not Initialize() ) then Say("The character frame is not available yet. Try again inside a run."); return; end
     local command = string.lower(message or "");
     if ( command == "unlock" ) then
-        unlocked = true; handle:Show();
-        Say("Drag the highlighted character frame, then use /asrplayer lock.");
+        Edit(true);
+        Say("Drag the highlighted character frame, then click Done.");
     elseif ( command == "lock" ) then
-        Stop(); unlocked = false; handle:Hide(); Say("Position locked.");
+        Edit(false); Say("Position locked.");
     elseif ( command == "reset" ) then
-        Stop(); unlocked = false; handle:Hide(); ASR_PlayerMoverDB = {};
-        player:ClearAllPoints();
-        for i = 1, table.getn(original) do player:SetPoint(unpack(original[i])); end
-        player:SetUserPlaced(false);
+        Reset();
         Say("Original position restored.");
     else
         Say("/asrplayer unlock, /asrplayer lock, /asrplayer reset");
@@ -102,7 +130,7 @@ driver:RegisterEvent("UI_SCALE_CHANGED");
 driver:SetScript("OnEvent", function()
     Stop(); unlocked = false;
     if ( Initialize() ) then
-        handle:Hide();
+        Edit(false);
         local db = Settings();
         if ( db.x and db.y ) then Place(db.x, db.y); end
     end
