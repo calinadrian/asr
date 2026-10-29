@@ -217,6 +217,37 @@ class NativeTests(unittest.TestCase):
         finally:
             mapped.close()
 
+    def test_drop_details_handle_locked_starters_and_faction_predecessors(self):
+        mapped = Mapped(self.patched)
+        try:
+            spec = missions.PROFILE['hooks']['drop_lock_detail']
+            mapped.write(spec['accepted'], bytes.fromhex('b8ffffffffc3'))
+            mapped.write(spec['resume'], bytes.fromhex('488d40ffc3'))  # native predecessor subtraction
+            mapped.write(0x1e5e3f, bytes.fromhex('b8feffffffc3'))       # faction status rendering
+            call = mapped.function(bytes.fromhex('554883ec204889cd')+mapped.call(spec['rva'])
+                                   +bytes.fromhex('4883c4205dc3'), [C.c_void_p])
+            scratch = C.create_string_buffer(0x800)
+            for horde in (False, True):
+                self.set_state(mapped, 0, horde)
+                pred = story.predecessors(horde)
+                for zone in range(story.TOTAL):
+                    struct.pack_into('<Q', scratch, 0x6d0, zone)
+                    result = call(scratch)
+                    if zone in (0, 12):
+                        self.assertEqual(result, 0xfffffffe)
+                        cap, ptr, length = struct.unpack_from('<QQQ', scratch, 0x3a0)
+                        self.assertEqual(cap, 0)
+                        self.assertEqual(C.string_at(ptr, length), b'Alliance only' if zone == 0 else b'Horde only')
+                    else:
+                        self.assertEqual(result, pred[zone], (horde, zone))
+                        self.assertLess(result, story.TOTAL)
+                self.set_state(mapped, (1 << story.TOTAL)-1, horde)
+                for zone in range(story.TOTAL):
+                    struct.pack_into('<Q', scratch, 0x6d0, zone)
+                    self.assertEqual(call(scratch), 0xffffffff)
+        finally:
+            mapped.close()
+
     def test_built_zones_have_their_own_terrain_and_creatures(self):
         image = missions.Builder(self.patched)
         base = image.base

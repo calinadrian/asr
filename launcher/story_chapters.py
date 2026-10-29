@@ -690,7 +690,20 @@ def apply(image, horde, lines):
     rehook(image, hk['rva'], hk['size'], Code().raw('50'+load).rel('0fa305', mask).raw('58')
            .jcc('ae', hk['rejected']).jmp(hk['accepted']))
     hk = h['drop_lock_detail']
-    rehook(image, hk['rva'], hk['size'], Code().raw(load).rel('0fa305', mask).jcc('b', hk['accepted']).jmp(hk['resume']))
+    alliance_pred, horde_pred = image.put(predecessors(False), 1), image.put(predecessors(True), 1)
+    code = Code().raw(load).rel('0fa305', mask).jcc('b', hk['accepted'])
+    # Native locked details subtract one from the zone index. Elwynn can now
+    # be locked for Horde heroes, so zero must never reach that subtraction.
+    # Starters have faction requirements; other chapters use the actual road.
+    code.raw('4883f800').jcc('e', 'alliance').raw('4883f80c').jcc('e', 'horde')
+    code.rel('488d0d', alliance_pred).rel('803d', horde_flag, '00').jcc('e', 'predecessor')
+    code.rel('488d0d', horde_pred).label('predecessor').raw('0fb6040148ffc0').jmp(hk['resume'])
+    for label, text in (('alliance', 'Alliance only'), ('horde', 'Horde only')):
+        encoded = text.encode()
+        code.label(label).raw('48c785a003000000000000')
+        code.rel('488d05', image.put(encoded, 1)).raw('488985a8030000')
+        code.raw('48c785b0030000'+struct.pack('<I', len(encoded)).hex()).jmp(0x1e5e3f)
+    rehook(image, hk['rva'], hk['size'], code)
 
     # Card and drop-table order.
     successor = image.put(next_table(), 1)
@@ -759,7 +772,6 @@ def apply(image, horde, lines):
     code.label('native').raw('58').rel('0f1005', hint).jmp(site+7)
     image.hook(site, before, code)
     # A locked card names the final boss of the zone before it on the hero's path.
-    alliance_pred, horde_pred = image.put(predecessors(False), 1), image.put(predecessors(True), 1)
     site, before = 0x20d378, bytes.fromhex('488b0b48ffc9')
     image.hook(site, before, Code().raw('488b0b50').rel('488d05', alliance_pred)
                .rel('803d', horde_flag, '00').jcc('e', 'read').rel('488d05', horde_pred)

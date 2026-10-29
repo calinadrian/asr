@@ -12,6 +12,14 @@ Locked overview cards use a short status line so their titles stay readable;
 the regular list retains the full boss and zone unlock requirements. The same
 compact tabs fit both the regular picker and the map header.
 
+Drop Tables handles locked starter zones explicitly. A Horde hero can open
+the default Elwynn detail without passing index zero to the native
+`zone - 1` prerequisite lookup. Starters show their faction requirement;
+other locked zones use the hero's chapter-road predecessor. Native regression
+calls cover every zone, both factions and both locked/unlocked states. An
+isolated Orc fixture reproduced the original index-underflow panic and opened
+successfully after this correction.
+
 The Story panel follows two faction roads that meet in Stranglethorn Vale:
 
 | Chapter | Alliance | Horde |
