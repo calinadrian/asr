@@ -1,5 +1,17 @@
 # Story chapters
 
+The Story and Dungeons selectors share a compact header row. While either
+map is open, the covered character and appearance panels are not spawned,
+so their controls cannot receive clicks through the map. Closing the map
+restores those panels through the normal picker rebuild. Native regression
+calls verify both covered panel gates in all three states. A geometry snapshot
+protects every map card position and connector segment. The rule Node template
+is verified independently of other headings so suppressing the covered panels
+does not remove the connector paths.
+Locked overview cards use a short status line so their titles stay readable;
+the regular list retains the full boss and zone unlock requirements. Closed
+sidebar tabs size themselves to their panel rather than the full viewport.
+
 The Story panel follows two faction roads that meet in Stranglethorn Vale:
 
 | Chapter | Alliance | Horde |

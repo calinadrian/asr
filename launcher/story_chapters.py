@@ -719,6 +719,7 @@ def apply(image, horde, lines):
     site, before = 0x20d362, bytes.fromhex('4084ff488dbc24a8030000')
     kinds = dict(lines)
     kinds['dungeon'] = DUNGEON_LINE
+    kinds['maplocked'] = ('Locked', (1.0, 0.45, 0.30))
     chosen = image.put(bytes(8), 8)  # the line's colour for the colour hook, or 0
     code = Code()
     for zone in lines:
@@ -729,7 +730,11 @@ def apply(image, horde, lines):
         code.raw('48833b'+bytes([zone]).hex()).jcc('e', 'alliance_chapter')
     for zone in HORDE_PATH[1:]:
         code.raw('48833b'+bytes([zone]).hex()).jcc('e', 'horde_chapter')
-    code.label('native').rel('48c705', chosen, '00000000').raw(before).jmp(site+len(before))
+    # The compact overview keeps prerequisites in the regular expanded list;
+    # multi-line boss requirements otherwise overflow its fixed-height cards.
+    code.label('native').rel('803d', map_state, '00').jcc('e', 'full_hint')
+    code.raw('4084ff').jcc('ne', 'linemaplocked')
+    code.label('full_hint').rel('48c705', chosen, '00000000').raw(before).jmp(site+len(before))
     code.label('alliance_chapter').rel('803d', horde_flag, '00').jcc('ne', 'line0')
     code.raw('4084ff').jcc('ne', 'native').jmp('line0')
     code.label('horde_chapter').rel('803d', horde_flag, '00').jcc('e', 'line12')

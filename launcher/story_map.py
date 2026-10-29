@@ -20,6 +20,8 @@ picked zone, so nothing sees an unknown zone; the picker's rebuild hook
 (story_chapters) sees the ID, sets the overlay and puts the real zone back.
 """
 import struct
+import json
+from pathlib import Path
 from durotar_patch import Code
 
 TOGGLE_ID = b'story-map'
@@ -53,6 +55,22 @@ RULE = 0x1e3950             # heading rule: its Node at rsp+0x50
 CATALOG_SLICE = 0x85f26c8   # -> (records, count)
 RULE_BUNDLE, SPAWN = 0x110f10, 0x187c90
 BUTTONS = (('Story', 'The road so far', TOGGLE_ID, STORY), ('Dungeons', 'Unlocked dungeons', DUNGEON_ID, DUNGEONS))
+HEADER_HEIGHT = 6.5
+TAB_WIDTH = 20.0
+# These two sibling panels are rebuilt on every selection. Do not spawn their
+# interactive descendants while the map occupies their screen area.
+COVERED_PANELS = ((0x20cdc9, 0x289570), (0x20cde3, 0x28d780))
+TAB_NODE = 0x23df36        # button Node at rbp+0x280; r14 still points to its Action
+
+
+def rule_template(image):
+    """The native rule Node, independent of whether another heading was drawn."""
+    profile = json.loads(Path(__file__).with_name('native-story-map.json').read_text())
+    for source in profile['sources']:
+        expected = bytes.fromhex(source['bytes'])
+        if image.read(source['rva'], len(expected)) != expected:
+            raise ValueError('Unsupported native map rule constructor')
+    return bytes.fromhex(profile['node'])
 
 
 def layout(horde, alliance, stv, shared):
@@ -119,7 +137,7 @@ def install(image, state, horde, alliance, stv, order, dungeons, mask):
     backdrop = image.put(rect_table([((PCT, -2.0), (PCT, -2.0), (PCT, 104.0), (PCT, 104.0))]), 16)
     gold = image.put(struct.pack('<I4f', 0, *GOLD), 16)
     dark = image.put(struct.pack('<I4f', 0, *BACKDROP), 16)
-    template = image.put(bytes(0x180), 16)
+    template = image.put(rule_template(image), 16)
     node = image.put(bytes(0x180), 16)
     bundle = image.put(bytes(0x400), 16)
     spawned = image.put(bytes(0x100), 16)
@@ -131,12 +149,10 @@ def install(image, state, horde, alliance, stv, order, dungeons, mask):
         code.raw('c78424'+struct.pack('<I', base).hex()+struct.pack('<I', tag).hex())
         code.raw('c78424'+struct.pack('<I', base+4).hex()+struct.pack('<f', value).hex())
 
-    # The heading rule's Node is the template for every rect.
-    before = image.read(RULE, 8)
-    if before != bytes.fromhex('488d8c2408020000'):
-        raise ValueError('Unsupported native heading rule')
-    image.hook(RULE, before, Code().raw('56575151488d742470').rel('488d3d', template)
-               .raw('b980010000f3a4').raw('59595f5e').raw(before).jmp(RULE+8))
+    for site, target in COVERED_PANELS:
+        before = b'\xe8'+struct.pack('<i', target-site-5)
+        code = Code().rel('803d', opened, '00').jcc('ne', 'covered')
+        image.hook(site, before, code.rel('e8', target).label('covered').jmp(site+5))
 
     # The Story column becomes an absolute overlay across the panels.
     before = image.read(COLUMN, 8)
@@ -180,18 +196,45 @@ def install(image, state, horde, alliance, stv, order, dungeons, mask):
     before = image.read(HEADING, 9)
     if before != bytes.fromhex('4c89e94889fa4d89f0'):
         raise ValueError('Unsupported native Story heading')
-    code = Code().raw('4883ec40')
+    # Keep the native heading row as the tabs' parent. Spawning into the whole
+    # column made two full-width rows and left the original controls underneath.
+    code = Code().raw(before).rel('e8', 0x183b50).raw('4883ec40')
+    tab_actions = []
     for title, subtitle, ident, value in BUTTONS:
         action = image.put(struct.pack('<QQQ', 1, 0, len(ident)), 8)       # Action: zone pick, ID
+        tab_actions.append(action)
         image.pointer(action+8, image.put(ident, 1))
         sub = image.put(struct.pack('<QQQ', 0, 0, len(subtitle)), 8)       # static String: capacity 0
         image.pointer(sub+8, image.put(subtitle.encode(), 1))
         text = title.encode()
         code.raw('31c0').rel('803d', opened, bytes([value]).hex()).raw('0f94c0').raw('4889442430')
         code.rel('488d05', sub).raw('4889442428').raw('48c7442420'+struct.pack('<I', len(text)).hex())
-        code.rel('4c8d0d', image.put(text, 1)).rel('4c8d05', action).raw('488d55604c89f9').rel('e8', BUTTON)
+        code.rel('4c8d0d', image.put(text, 1)).rel('4c8d05', action).raw('488d95500300004c89f9').rel('e8', BUTTON)
     code.raw('4883c440').raw('4c89bdd0050000')                       # as natively: rbp+0x5d0 = r15
     image.hook(HEADING, before, code.jmp(HEADING_END))
+
+    # Apply compact sizing only to our two static Actions; all other native
+    # buttons retain their original dimensions, text and interaction behavior.
+    before = bytes.fromhex('4c8d75d8488d9580020000')
+    code = Code().raw('50')
+    for action in tab_actions:
+        code.rel('488d05', action).raw('4939c6').jcc('e', 'tab')
+    code.jmp('done').label('tab')
+    def widths(tag, value):
+        for off in (0x60, 0x88, 0x98, 0xa8):
+            code.raw('c785'+struct.pack('<I', 0x280+off).hex()+struct.pack('<I', tag).hex())
+            code.raw('c785'+struct.pack('<I', 0x284+off).hex()+struct.pack('<f', value).hex())
+    code.rel('803d', opened, '00').jcc('e', 'sidebar')
+    widths(VW, TAB_WIDTH)
+    code.jmp('height').label('sidebar')
+    widths(PCT, 48.0)
+    code.label('height')
+    for off, tag, value in ((0x90, VH, HEADER_HEIGHT),
+                            (0xa0, VH, HEADER_HEIGHT), (0xb0, VH, HEADER_HEIGHT)):
+        code.raw('c785'+struct.pack('<I', 0x280+off).hex()+struct.pack('<I', tag).hex())
+        code.raw('c785'+struct.pack('<I', 0x284+off).hex()+struct.pack('<f', value).hex())
+    code.raw('48c785c803000000000000')  # flex_grow / flex_shrink = 0
+    image.hook(TAB_NODE, before, code.label('done').raw('58').raw(before).jmp(TAB_NODE+len(before)))
 
     def spawn_rects(code, table, count, paint, label):
         """Spawn count absolute rects into the card list (rbp+8 spawner, head [rbp+0x338])."""

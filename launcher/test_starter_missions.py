@@ -60,6 +60,16 @@ class Mapped:
 
 
 class StoryMapLayoutTests(unittest.TestCase):
+    def test_approved_card_positions_and_paths_are_unchanged(self):
+        import hashlib
+        import story_map as sm
+        shared = [z for z in story.ORDER if z not in (*story.HORDE_PATH, *story.ALLIANCE_PATH, story.STV)]
+        spots = sm.layout(story.HORDE_PATH, story.ALLIANCE_PATH, story.STV, shared)
+        geometry = b''.join(struct.pack('<Iff', k, *v) for k, v in sorted(spots.items()))
+        geometry += sm.rect_table(sm.connectors(spots, story.HORDE_PATH, story.ALLIANCE_PATH, story.STV, shared))
+        self.assertEqual(hashlib.sha256(geometry).hexdigest(),
+                         'a5e535d0a510100ecf43dbc951b3e706f4d5d8e5120ede9c41f0f2ad31dc66e6')
+
     def test_every_zone_has_a_spot_on_one_connected_road(self):
         import story_map as sm
         shared = [z for z in story.ORDER if z not in (*story.HORDE_PATH, *story.ALLIANCE_PATH, story.STV)]
@@ -610,6 +620,26 @@ class NativeTests(unittest.TestCase):
                                      [C.c_char_p, C.c_uint64])
             picked.value = story.INDEX['stv']
             self.assertEqual(lookup(story_map.TOGGLE_ID, len(story_map.TOGGLE_ID)), story.INDEX['stv'])
+        finally:
+            mapped.close()
+
+    def test_map_does_not_spawn_click_targets_behind_it(self):
+        import story_map
+        mapped = Mapped(self.patched)
+        try:
+            opened = C.c_uint8.from_address(mapped.base+self.state['story_map'])
+            counter = C.c_uint32()
+            for site, target in story_map.COVERED_PANELS:
+                # Execute the production call gate with a harmless panel stub.
+                mapped.write(target, bytes.fromhex('48b8')+struct.pack('<Q', C.addressof(counter))
+                             +bytes.fromhex('ff00c3'))
+                mapped.write(site+5, b'\xc3')
+                call = mapped.function(bytes.fromhex('4883ec28')+mapped.call(site)
+                                       +bytes.fromhex('4883c428c3'), [])
+                for mode, expected in ((0, 1), (1, 0), (2, 0), (0, 1)):
+                    counter.value, opened.value = 0, mode
+                    call()
+                    self.assertEqual(counter.value, expected, (site, mode))
         finally:
             mapped.close()
 
