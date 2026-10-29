@@ -38,6 +38,11 @@ class LobbyTests(unittest.TestCase):
         self.lobby.handle(player, b'\x01' + number(3) + string('0.124.4') + number(0) + b'\x01')
         self.assertEqual(player.version, '0.124.4')
 
+    def test_combined_armor_release_version_can_connect(self):
+        player = self.lobby.connect(Wire())
+        self.lobby.handle(player, b'\x01' + number(3) + string('0.124.5') + number(0) + b'\x01')
+        self.assertEqual(player.version, '0.124.5')
+
     def room(self, password='', private=False, maximum=5):
         host = self.player()
         self.lobby.handle(host, b'\x03' + string('Test room') + bytes([not private])

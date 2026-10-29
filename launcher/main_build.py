@@ -147,7 +147,7 @@ if __name__ == '__main__':
     parser.add_argument('--vanilla', type=Path, default=ROOT / 'downloads/durotar-assets/vanilla-1.12.1/app/Data')
     parser.add_argument('--source', type=Path, default=ROOT / 'downloads/race-expansion/baseline/ASR.exe')
     parser.add_argument('--out', type=Path, default=ROOT / 'downloads/main-build')
-    parser.add_argument('--version', default='0.124.4')
+    parser.add_argument('--version', default='0.124.5')
     parser.add_argument('--install', action='store_true')
     parser.add_argument('--backup', type=Path)
     args = parser.parse_args()
