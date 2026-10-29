@@ -127,21 +127,21 @@ class PhotoPublishTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'tested release artifact'):
                     game_release.publish_bloodelf(archive)
 
-    def test_game_publish_requires_matching_blood_elf_assets(self):
-        import bloodelf_patch
-        photos = hashlib.sha256(photo_archive.build_photos(ROOT / 'launcher/zone-photos')).hexdigest()
-        base = [{'name': 'patch-Z.MPQ', 'sha256': photos}, {'name': 'patch-X.MPQ'}]
+    def test_game_publish_requires_complete_matching_main_build_assets(self):
+        from main_build import required_data
+        required = required_data()
+        base = [dict(name=name, sha256=digest) for name, digest in required.items() if name != 'patch-W.MPQ']
         with tempfile.TemporaryDirectory() as scratch:
             folder = Path(scratch)
             for extra, valid in (([], False), ([{'name': 'patch-W.MPQ', 'sha256': 'old'}], False),
-                                 ([bloodelf_patch.PROFILE['assets']], True)):
+                                 ([dict(name='patch-W.MPQ', sha256=required['patch-W.MPQ'])], True)):
                 def download(args, **kwargs):
                     (folder / 'patches.json').write_text(json.dumps({'patches': base+extra}))
                 with patch.object(game_release.subprocess, 'run', download):
                     if valid:
                         game_release.require_live_data('game', folder)
                     else:
-                        with self.assertRaisesRegex(ValueError, 'matching Blood Elf'):
+                        with self.assertRaisesRegex(ValueError, 'matching main build'):
                             game_release.require_live_data('game', folder)
 
     def test_incremental_publish_retains_existing_data_and_metadata(self):
@@ -163,9 +163,9 @@ class PhotoPublishTests(unittest.TestCase):
             self.assertEqual(photos['sha256'], hashlib.sha256(expected).hexdigest())
             packed = b''.join((folder / p['url']).read_bytes() for p in photos['parts'])
             self.assertEqual(gzip.decompress(packed), expected)
-            self.assertEqual(sum(f.startswith(b'BLP2') for f in photo_archive.read_stored(expected)), 12)
+            self.assertEqual(sum(f.startswith(b'BLP2') for f in photo_archive.read_stored(expected)), photo_archive.PHOTOS)
 
-        with patch.object(game_release.subprocess, 'run', download), patch.object(game_release, 'upload', upload):
+        with patch('main_build.required_data', return_value={}), patch.object(game_release.subprocess, 'run', download), patch.object(game_release, 'upload', upload):
             game_release.publish_zone_photos()
 
     def test_game_publish_uploads_the_game_before_the_helper_that_fetches_it(self):

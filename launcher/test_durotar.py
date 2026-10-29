@@ -268,7 +268,8 @@ class DurotarReleaseTests(unittest.TestCase):
     def test_game_publish_requires_durotar_data(self):
         from photo_archive import build_photos
         import hashlib
-        photos = hashlib.sha256(build_photos(game_release.ROOT / 'launcher/zone-photos')).hexdigest()
+        from main_build import required_data
+        photos = required_data()['patch-Z.MPQ']
         with tempfile.TemporaryDirectory() as scratch:
             folder = Path(scratch)
 

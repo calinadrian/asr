@@ -46,7 +46,7 @@ def canonical(name):
 
 def dependencies(name, data):
     suffix = Path(name).suffix.lower()
-    if suffix in ('.adt', '.wmo'):
+    if suffix in ('.adt', '.wmo', '.wdt'):
         table = dict(chunks(data))
         for tag in (b'MTEX', b'MMDX', b'MWMO', b'MOTX', b'MODN', b'MOSB'):
             yield from names(table.get(tag, b''))
@@ -71,8 +71,8 @@ def dependencies(name, data):
 
 
 class Chain:
-    def __init__(self, folder):
-        paths = list(Path(folder).glob('*.MPQ'))
+    def __init__(self, folder, exclude=()):
+        paths = [p for p in Path(folder).glob('*.MPQ') if p.name.lower() not in {n.lower() for n in exclude}]
         if not paths:
             raise ValueError(f'No MPQ archives in {folder}')
         # Patch files take priority over base archives, later patches first.
@@ -153,6 +153,10 @@ def creature_assets(chain, displays=DISPLAYS):
         pos = model[2]
         path = model_strings[pos:].split(b'\0', 1)[0].decode('ascii')
         yield canonical(path)
+        if row[3]:
+            # Character NPCs use their baked body atlas. Legacy Skin1 strings
+            # can name retired creature textures which are never sampled.
+            continue
         for pos in row[6:9]:
             if pos:
                 skin = display_strings[pos:].split(b'\0', 1)[0].decode('ascii')

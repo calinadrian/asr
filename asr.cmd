@@ -8,6 +8,7 @@ if not exist "%PY%" (echo Missing %PY%. Copy a Python 3.12 with the cryptography
 if /i "%~1"=="server" goto server
 if /i "%~1"=="play" goto play
 if /i "%~1"=="setup" goto setup
+if /i "%~1"=="build-main" goto build_main
 if /i "%~1"=="publish-game" if not "%~3"=="" goto publish_game
 if /i "%~1"=="publish-zone-photos" goto publish_zone_photos
 if /i "%~1"=="publish-lighting" if not "%~2"=="" goto publish_lighting
@@ -22,6 +23,7 @@ echo Usage (in PowerShell, type .\asr instead of asr):
 echo   asr server                    run the co-op server
 echo   asr play                      open the game on this PC with co-op on our server
 echo   asr setup                     build downloads\ASR-Setup.exe, the installer players download
+echo   asr build-main                assemble all reviewed changes in downloads\main-build
 echo   asr publish-game EXE VERSION ["NOTES"]  send a game executable to every player
 echo   asr publish-zone-photos       update zone photos without republishing other data
 echo   asr publish-lighting DATA-FOLDER  update the brighter zone lighting without republishing other data
@@ -50,6 +52,9 @@ echo Built downloads\ASR-Setup.exe
 exit /b
 :publish_game
 "%PY%" launcher\game_release.py --exe "%~2" --version "%~3" --notes "%~4"
+exit /b
+:build_main
+"%PY%" launcher\main_build.py
 exit /b
 :publish_zone_photos
 "%PY%" launcher\game_release.py --zone-photos

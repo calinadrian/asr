@@ -83,13 +83,16 @@ def read_stored(archive):
     return files
 
 
+PHOTOS = 19  # twelve native zone cards and seven story chapter cards
+
+
 def build_photos(textures):
     textures = sorted(Path(textures).glob('*.blp'))
-    if len(textures) != 12:
-        raise ValueError('Expected exactly 12 zone photo textures')
+    if len(textures) != PHOTOS:
+        raise ValueError(f'Expected exactly {PHOTOS} zone photo textures')
     entries = {'interface\\asr\\zone-photos_____\\' + p.name: p.read_bytes() for p in textures}
     archive = build(entries)
-    if len(read_stored(archive)) != 13:
+    if len(read_stored(archive)) != PHOTOS+1:  # and the listfile
         raise ValueError('Photo archive failed read-back verification')
     return archive
 
@@ -102,5 +105,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     archive = build_photos(args.textures)
     args.out.write_bytes(archive)
-    print(f'Built {args.out}: 12 zone photos, {len(archive)} bytes')
+    print(f'Built {args.out}: {PHOTOS} zone photos, {len(archive)} bytes')
 

@@ -79,10 +79,11 @@ def upload(tag, folder, manifests):
 
 
 def require_live_data(tag, folder):
-    """Never ship a game whose zone-photo or Durotar assets are missing from the data feed."""
-    from photo_archive import build_photos
+    """Require the complete reviewed main-build asset set before shipping a game."""
     from durotar_assets import ARCHIVE
-    expected = hashlib.sha256(build_photos(ROOT / 'launcher/zone-photos')).hexdigest()
+    from main_build import required_data
+    required = required_data()
+    expected = required['patch-Z.MPQ']
     subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
                     '--pattern', 'patches.json', '--dir', str(folder), '--clobber'], check=True)
     patches = json.loads((folder / 'patches.json').read_text(encoding='utf-8-sig')).get('patches', [])
@@ -90,11 +91,9 @@ def require_live_data(tag, folder):
         raise ValueError('Publish data first with asr publish-data DATA-FOLDER: the live data feed needs the matching zone-photo archive')
     if not any(p.get('name', '').lower() == ARCHIVE.lower() for p in patches):
         raise ValueError(f'Publish Durotar first with --durotar VANILLA-DATA --data DATA: the live data feed needs {ARCHIVE}')
-    from bloodelf_patch import PROFILE
-    asset = PROFILE['assets']
-    if not any(p.get('name', '').lower() == asset['name'].lower()
-               and p.get('sha256') == asset['sha256'] for p in patches):
-        raise ValueError('Publish the matching Blood Elf archive first with --bloodelf ARCHIVE')
+    for name, digest in required.items():
+        if not any(p.get('name', '').lower() == name.lower() and p.get('sha256') == digest for p in patches):
+            raise ValueError(f'Publish the matching main build data first: {name}')
     (folder / 'patches.json').unlink()
 
 
@@ -155,6 +154,11 @@ def publish(exe, version, notes, tag=GAME_TAG):
 def publish_zone_photos(tag=GAME_TAG):
     """Add the current zone photos without republishing unchanged game data."""
     from photo_archive import build_photos
+    from main_build import required_data
+    # patch-Z also contains NPC models and DBC overrides. A photo-only archive
+    # would silently remove those fixes for every installed player.
+    if 'patch-S.MPQ' in required_data():
+        raise ValueError('Rebuild with asr build-main and publish-data downloads/main-build/Data to retain story NPC fixes')
     with tempfile.TemporaryDirectory(prefix='asr-zone-photos-') as scratch:
         folder = Path(scratch)
         subprocess.run(['gh', 'release', 'download', tag, '--repo', GITHUB_REPO,
@@ -298,16 +302,12 @@ def publish_addons(tag=GAME_TAG):
 
 def publish_data(data, tag=GAME_TAG):
     data = Path(data)
+    from main_build import validate_data
+    validate_data(data)
     with tempfile.TemporaryDirectory(prefix='asr-game-') as scratch:
         folder = Path(scratch)
         patches, base = [], []
-        from photo_archive import build_photos
-        from zone_light import ARCHIVE, build_lighting
-        photos = folder / 'patch-Z.MPQ'
-        photos.write_bytes(build_photos(ROOT / 'launcher/zone-photos'))
-        lighting = folder / ARCHIVE
-        lighting.write_bytes(build_lighting(data))
-        sources = [p for p in data.glob('*.MPQ') if p.name.lower() not in ('patch-z.mpq', ARCHIVE.lower())] + [photos, lighting]
+        sources = list(data.glob('*.MPQ'))
         for source in sorted(sources, key=lambda p: p.name.lower()):
             with source.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()[:16]

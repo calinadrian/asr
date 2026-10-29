@@ -47,10 +47,13 @@ def apply(data, ico):
 def brand(data, ico, layout):
     pe = struct.unpack_from('<I', data, 0x3c)[0]
     sections = []
+    native_regions = []
     for index in range(struct.unpack_from('<H', data, pe + 6)[0]):
         pos = pe + 24 + struct.unpack_from('<H', data, pe + 20)[0] + 40 * index
         _, va, size, raw = struct.unpack_from('<IIII', data, pos + 8)
         sections.append((va, raw, size))
+        if data[pos:pos+4] != b'.asr':
+            native_regions.append((raw, size))
 
     def offset(address):
         for va, raw, size in sections:
@@ -117,7 +120,10 @@ def brand(data, ico, layout):
     # so every language renders and centers exactly "ASR".
     old = b'"game.title": "Azeroth Survivors"'
     new = b'"game.title": "ASR"' + b' ' * 14
-    count = data.count(old) + data.count(new)
+    # Race patches retain the twelve original JSONs and add extended copies.
+    # Validate the owning native table, then brand both the originals and copies.
+    count = sum(data[raw:raw+size].count(old) + data[raw:raw+size].count(new)
+                for raw, size in native_regions)
     if count != 12:
         raise ValueError(f'Expected 12 game-title translations, found {count}')
     data = data.replace(old, new)

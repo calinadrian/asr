@@ -1,0 +1,452 @@
+{
+  "22": {
+    "name": "Worgen",
+    "folder": "Worgen",
+    "prefix": "Wo",
+    "sexes": {
+      "0": {
+        "model": 307454,
+        "chr_model": 43,
+        "texture_layout": 125
+      },
+      "1": {
+        "model": 307453,
+        "chr_model": 44,
+        "texture_layout": 126
+      }
+    },
+    "classes": [
+      1,
+      2,
+      4,
+      5,
+      8,
+      9
+    ],
+    "template": 1,
+    "faction": "alliance"
+  },
+  "32": {
+    "name": "Kul Tiran",
+    "folder": "KulTiran",
+    "prefix": "Kt",
+    "sexes": {
+      "0": {
+        "model": 1721003,
+        "chr_model": 63,
+        "texture_layout": 141
+      },
+      "1": {
+        "model": 1886724,
+        "chr_model": 64,
+        "texture_layout": 142
+      }
+    },
+    "classes": [
+      1,
+      2,
+      4,
+      5,
+      8,
+      9
+    ],
+    "template": 1,
+    "faction": "alliance"
+  },
+  "11": {
+    "name": "Draenei",
+    "folder": "Draenei",
+    "prefix": "Dr",
+    "sexes": {
+      "0": {
+        "model": 1005887,
+        "chr_model": 21,
+        "texture_layout": 123
+      },
+      "1": {
+        "model": 1022598,
+        "chr_model": 22,
+        "texture_layout": 124
+      }
+    },
+    "classes": [
+      1,
+      2,
+      4,
+      5,
+      8,
+      9
+    ],
+    "template": 1,
+    "faction": "alliance"
+  },
+  "84": {
+    "name": "Earthen",
+    "folder": "EarthenDwarf",
+    "prefix": "Ed",
+    "sexes": {
+      "0": {
+        "model": 5548261,
+        "chr_model": 195,
+        "texture_layout": 185
+      },
+      "1": {
+        "model": 5548259,
+        "chr_model": 196,
+        "texture_layout": 187
+      }
+    },
+    "classes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      8
+    ],
+    "template": 3,
+    "faction": "neutral"
+  },
+  "34": {
+    "name": "Dark Iron Dwarf",
+    "folder": "DarkIronDwarf",
+    "prefix": "Di",
+    "sexes": {
+      "0": {
+        "model": 1890765,
+        "chr_model": 67,
+        "texture_layout": 143
+      },
+      "1": {
+        "model": 1890763,
+        "chr_model": 68,
+        "texture_layout": 144
+      }
+    },
+    "classes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      8
+    ],
+    "template": 3,
+    "faction": "alliance"
+  },
+  "30": {
+    "name": "Lightforged Draenei",
+    "folder": "LightforgedDraenei",
+    "prefix": "Ld",
+    "sexes": {
+      "0": {
+        "model": 1620605,
+        "chr_model": 59,
+        "texture_layout": 137
+      },
+      "1": {
+        "model": 1593999,
+        "chr_model": 60,
+        "texture_layout": 138
+      }
+    },
+    "classes": [
+      1,
+      2,
+      4,
+      5,
+      8,
+      9
+    ],
+    "template": 1,
+    "faction": "alliance"
+  },
+  "29": {
+    "name": "Void Elf",
+    "folder": "VoidElf",
+    "prefix": "Ve",
+    "sexes": {
+      "0": {
+        "model": 1734034,
+        "chr_model": 57,
+        "texture_layout": 135
+      },
+      "1": {
+        "model": 1733758,
+        "chr_model": 58,
+        "texture_layout": 136
+      }
+    },
+    "classes": [
+      2,
+      3,
+      4,
+      5,
+      8,
+      9
+    ],
+    "template": 10,
+    "faction": "alliance"
+  },
+  "37": {
+    "name": "Mechagnome",
+    "folder": "Mechagnome",
+    "prefix": "Mg",
+    "sexes": {
+      "0": {
+        "model": 2622502,
+        "chr_model": 73,
+        "texture_layout": 149
+      },
+      "1": {
+        "model": 2564806,
+        "chr_model": 74,
+        "texture_layout": 150
+      }
+    },
+    "classes": [
+      1,
+      4,
+      8,
+      9
+    ],
+    "template": 7,
+    "faction": "alliance"
+  },
+  "52": {
+    "name": "Dracthyr",
+    "folder": "Dracthyr",
+    "prefix": "Dt",
+    "sexes": {
+      "0": {
+        "model": 4207724,
+        "chr_model": 89,
+        "texture_layout": 155
+      },
+      "1": {
+        "model": 4207724,
+        "chr_model": 89,
+        "texture_layout": 155
+      }
+    },
+    "classes": [
+      2,
+      3,
+      4,
+      5,
+      8,
+      9
+    ],
+    "template": 10,
+    "faction": "neutral"
+  },
+  "86": {
+    "name": "Haranir",
+    "folder": "Harronir",
+    "prefix": "Hr",
+    "sexes": {
+      "0": {
+        "model": 5422149,
+        "chr_model": 200,
+        "texture_layout": 183
+      },
+      "1": {
+        "model": 5422147,
+        "chr_model": 201,
+        "texture_layout": 184
+      }
+    },
+    "classes": [
+      1,
+      3,
+      4,
+      5,
+      11
+    ],
+    "template": 4,
+    "faction": "neutral"
+  },
+  "27": {
+    "name": "Nightborne",
+    "folder": "Nightborne",
+    "prefix": "Nb",
+    "sexes": {
+      "0": {
+        "model": 1814471,
+        "chr_model": 53,
+        "texture_layout": 131
+      },
+      "1": {
+        "model": 1810676,
+        "chr_model": 54,
+        "texture_layout": 132
+      }
+    },
+    "classes": [
+      1,
+      3,
+      4,
+      5,
+      11
+    ],
+    "template": 4,
+    "faction": "horde"
+  },
+  "28": {
+    "name": "Highmountain Tauren",
+    "folder": "HighmountainTauren",
+    "prefix": "Ht",
+    "sexes": {
+      "0": {
+        "model": 1630218,
+        "chr_model": 55,
+        "texture_layout": 133
+      },
+      "1": {
+        "model": 1630402,
+        "chr_model": 56,
+        "texture_layout": 134
+      }
+    },
+    "classes": [
+      1,
+      3,
+      7,
+      11
+    ],
+    "template": 6,
+    "faction": "horde"
+  },
+  "36": {
+    "name": "Mag'har Orc",
+    "folder": "MagharOrc",
+    "prefix": "Mo",
+    "sexes": {
+      "0": {
+        "model": 917116,
+        "chr_model": 71,
+        "texture_layout": 147
+      },
+      "1": {
+        "model": 949470,
+        "chr_model": 72,
+        "texture_layout": 148
+      }
+    },
+    "classes": [
+      1,
+      3,
+      4,
+      7,
+      9
+    ],
+    "template": 2,
+    "faction": "horde"
+  },
+  "31": {
+    "name": "Zandalari Troll",
+    "folder": "ZandalariTroll",
+    "prefix": "Za",
+    "sexes": {
+      "0": {
+        "model": 1630447,
+        "chr_model": 61,
+        "texture_layout": 139
+      },
+      "1": {
+        "model": 1662187,
+        "chr_model": 62,
+        "texture_layout": 140
+      }
+    },
+    "classes": [
+      1,
+      3,
+      4,
+      5,
+      7,
+      8
+    ],
+    "template": 8,
+    "faction": "horde"
+  },
+  "35": {
+    "name": "Vulpera",
+    "folder": "Vulpera",
+    "prefix": "Vu",
+    "sexes": {
+      "0": {
+        "model": 1890761,
+        "chr_model": 69,
+        "texture_layout": 145
+      },
+      "1": {
+        "model": 1890759,
+        "chr_model": 70,
+        "texture_layout": 146
+      }
+    },
+    "classes": [
+      1,
+      3,
+      4,
+      5,
+      7,
+      8
+    ],
+    "template": 8,
+    "faction": "horde"
+  },
+  "24": {
+    "name": "Pandaren",
+    "folder": "Pandaren",
+    "prefix": "Pa",
+    "sexes": {
+      "0": {
+        "model": 535052,
+        "chr_model": 47,
+        "texture_layout": 129
+      },
+      "1": {
+        "model": 589715,
+        "chr_model": 48,
+        "texture_layout": 130
+      }
+    },
+    "classes": [
+      1,
+      2,
+      4,
+      5,
+      8,
+      9
+    ],
+    "template": 1,
+    "faction": "neutral"
+  },
+  "9": {
+    "name": "Goblin",
+    "folder": "Goblin",
+    "prefix": "Go",
+    "sexes": {
+      "0": {
+        "model": 119376,
+        "chr_model": 17,
+        "texture_layout": 119
+      },
+      "1": {
+        "model": 119369,
+        "chr_model": 18,
+        "texture_layout": 120
+      }
+    },
+    "classes": [
+      1,
+      4,
+      8,
+      9
+    ],
+    "template": 7,
+    "faction": "horde"
+  }
+}

@@ -85,13 +85,16 @@ def strips(image):
 
 
 class Builder:
-    def __init__(self, casc, custom, race, sex, folder, prefix, hair_styles, facial_styles):
+    def __init__(self, casc, custom, race, sex, folder, prefix, hair_styles, facial_styles,
+                 shared_hair=True, preserve_body_palette=False):
         """folder like Character\\BloodElf, prefix like BloodElfMale; hair_styles lists the hair
         style choice positions the converted model kept, facial_styles how many facial hair
         choices it kept."""
         self.casc, self.c = casc, custom
         self.race, self.sex, self.folder, self.prefix = race, sex, folder, prefix
         self.hair_styles, self.facial_styles = hair_styles, facial_styles
+        self.shared_hair = shared_hair
+        self.preserve_body_palette = preserve_body_palette
         self.files, self.rows, self.hair_geosets = {}, [], []
         self.cache = {}
 
@@ -124,7 +127,17 @@ class Builder:
             upper, lower = strips(face)
             blp.paste(base, upper, 0, 160, blend=False)
             blp.paste(base, lower, 0, 192, blend=False)
-            self.row(SKIN, 0, color, self.put(f'{body}Skin00_{color:02d}', base))
+            extra = self.c.texture(skin, 2)
+            extra_image = self.image(extra, 256) if extra else None
+            if extra_image and self.preserve_body_palette:
+                size = extra_image[1]
+                extended = (size*2, size, bytearray(size*size*8))
+                blp.paste(extended, blp.resize(extra_image, size, size), 0, 0, blend=False)
+                blp.paste(extended, blp.resize(blp.crop(retail, 0, 0, w//2, h), size, size),
+                          size, 0, blend=False)
+                extra_image = extended
+            self.row(SKIN, 0, color, self.put(f'{body}Skin00_{color:02d}', base),
+                     self.put(f'{body}SkinExtra00_{color:02d}', extra_image) if extra else '')
             under = []
             for target, name in ((13, 'NakedPelvisSkin'), (14, 'NakedTorsoSkin')):
                 fid = self.c.texture(skin, target)
@@ -146,7 +159,8 @@ class Builder:
         for color, choice in enumerate(colors):
             fid = self.c.texture(choice, 10)
             if fid:
-                hair[color] = self.put(f'Hair00_{color:02d}', blp.resize(self.image(fid, 256), 256, 256))
+                hair_name = f'Hair00_{color:02d}' if self.shared_hair else f'{body}Hair00_{color:02d}'
+                hair[color] = self.put(hair_name, blp.resize(self.image(fid, 256), 256, 256))
         for variation, position in enumerate(self.hair_styles):
             style = styles[position]
             self.hair_geosets.append((variation, self.c.geoset(style, 0) or 0))
@@ -163,7 +177,14 @@ class Builder:
         self.facial_geosets = [(v, self.c.geoset(choice, 1) or 0) for v, choice in enumerate(facial)]
         for variation in range(max(len(facial), 1)):
             for color in range(len(colors)):
-                self.row(FACIAL_HAIR, variation, color)
+                choice = facial[variation] if facial else None
+                fid = (self.c.texture(choice, 8, colors[color]) or self.c.texture(choice, 8)) if choice else None
+                textures = []
+                if fid:
+                    upper, lower = strips(self.image(fid, 96))
+                    textures = [self.put(f'{body}FacialLowerHair{variation:02d}_{color:02d}', lower),
+                                self.put(f'{body}FacialUpperHair{variation:02d}_{color:02d}', upper)]
+                self.row(FACIAL_HAIR, variation, color, *textures)
 
         eye = self.c.choices('Eye Color')
         self.eye_texture = None

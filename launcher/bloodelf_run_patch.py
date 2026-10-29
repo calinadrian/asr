@@ -20,7 +20,7 @@ def apply(source, profile):
     if marker >= 0:
         rva = va+marker-raw
         blob = MARKER + code.assemble(rva+len(MARKER))
-        if marker+len(blob) != raw+virtual or data[marker:marker+len(blob)] != blob:
+        if marker+len(blob) > raw+virtual or data[marker:marker+len(blob)] != blob:
             raise ValueError('Unknown Blood Elf transition payload')
     else:
         if data[at:at+5].hex() != profile['before']:

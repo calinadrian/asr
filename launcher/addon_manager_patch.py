@@ -84,9 +84,7 @@ def apply(source):
         raise ValueError('Unsupported native AddOns handler; analyze this build first')
 
     # Keep every embedded JSON blob's length and all native pointers unchanged.
-    labels = 0
     def label(match):
-        nonlocal labels
         value = json.loads(match[2])
         if value in LABELS:
             new = json.dumps(LABELS[value], ensure_ascii=False).encode('utf-8')
@@ -96,12 +94,13 @@ def apply(source):
             raise ValueError('Unknown AddOns button translation')
         if len(new) > len(match[2]):
             raise ValueError('Addon button translation exceeds its reserved slot')
-        labels += 1
         return match[1]+new+b' '*(len(match[2])-len(new))
     data = bytearray(re.sub(rb'("options.open_addons_folder": )("(?:[^"\\]|\\.)*")', label, data))
-    if labels not in (0, 14):
-        raise ValueError('Expected all 14 AddOns button translations')
-    if data.count(b'"options.open_addons_folder": ') != 14:
+    # Expanded race locales contain copies of the same translations. The
+    # original native regions still own exactly fourteen entries.
+    native_labels = sum(data[raw:raw+size].count(b'"options.open_addons_folder": ')
+                        for name, _, raw, size, _ in sections if not name.startswith(b'.asr'))
+    if native_labels != 14:
         raise ValueError('Missing AddOns button translations')
     old_note = b'"Put each addon\'s folder (made for WoW 1.12) in {path}"'
     new_note = b'"Add or remove addons. Changes apply next run."'

@@ -82,5 +82,54 @@
     "image": "https://wow.zamimg.com/uploads/screenshots/normal/54495-warsong-gulch.jpg",
     "source": "https://www.wowhead.com/classic/zone=3277/warsong-gulch",
     "file": "loadscreenwarsonggulch.blp"
+  },
+  {
+    "zone": "westfall",
+    "texture": "loadscreenasrwestfall",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/1292295.jpg",
+    "source": "https://www.wowhead.com/classic/zone=40/westfall#screenshots",
+    "file": "loadscreenasrwestfall.blp"
+  },
+  {
+    "zone": "durotar",
+    "texture": "loadscreenasrdurotar",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/1024663.jpg",
+    "source": "https://www.wowhead.com/classic/zone=14/durotar#screenshots",
+    "file": "loadscreenasrdurotar.blp"
+  },
+  {
+    "zone": "barrens",
+    "texture": "loadscreenasrbarrens",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/68703.jpg",
+    "source": "https://www.wowhead.com/classic/zone=17/the-barrens#screenshots",
+    "file": "loadscreenasrbarrens.blp"
+  },
+  {
+    "zone": "stonetalon",
+    "texture": "loadscreenasrstonetalon",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/1291970.jpg",
+    "source": "https://www.wowhead.com/classic/zone=406/stonetalon-mountains#screenshots",
+    "file": "loadscreenasrstonetalon.blp"
+  },
+  {
+    "zone": "stv",
+    "texture": "loadscreenasrstranglethorn",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/66794.jpg",
+    "source": "https://www.wowhead.com/classic/zone=33/stranglethorn-vale#screenshots",
+    "file": "loadscreenasrstranglethorn.blp"
+  },
+  {
+    "zone": "deadmines",
+    "texture": "loadscreenasrdeadmines",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/63699.jpg",
+    "source": "https://www.wowhead.com/classic/zone=1581/the-deadmines#screenshots",
+    "file": "loadscreenasrdeadmines.blp"
+  },
+  {
+    "zone": "wailing",
+    "texture": "loadscreenasrwailing",
+    "image": "https://wow.zamimg.com/uploads/screenshots/normal/86186.jpg",
+    "source": "https://www.wowhead.com/classic/zone=718/wailing-caverns#screenshots",
+    "file": "loadscreenasrwailing.blp"
   }
 ]

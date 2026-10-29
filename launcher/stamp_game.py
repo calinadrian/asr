@@ -58,7 +58,8 @@ def allow_any_name(data):
 
 def stamp(source, output, version, build=None):
     import brand_game
-    data = brand_game.apply(allow_any_name(Path(source).read_bytes()), (ROOT / 'launcher/asr.ico').read_bytes())
+    import starter_missions
+    data = brand_game.apply(allow_any_name(starter_missions.remove(Path(source).read_bytes())), (ROOT / 'launcher/asr.ico').read_bytes())
     import zone_cards
     data = zone_cards.apply(data)
     import addon_manager_patch
@@ -69,7 +70,16 @@ def stamp(source, output, version, build=None):
     import durotar_patch
     data = durotar_patch.apply(data)
     import bloodelf_patch
-    data = bloodelf_patch.apply(data)
+    # The release always includes the expanded roster before the final story payload.
+    import json
+    import race_patch
+    # Expanded picker hooks supersede the nine-race hooks; validate them through
+    # their owner instead of attempting to reapply the superseded picker.
+    if race_patch.MARKER not in data:
+        data = bloodelf_patch.apply(data)
+    catalog = json.loads((ROOT / 'launcher/native-races.json').read_text())
+    data = race_patch.apply(data, {int(k): v for k, v in catalog.items()})
+    data = starter_missions.apply(data)
     old_code, old_version, at = current(data)
     build = build or subprocess.run(['git', 'rev-parse', '--short=8', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
     if len(version) != len(old_version) or not re.fullmatch(r'\d+\.\d+\.\d+', version):

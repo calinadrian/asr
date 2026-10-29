@@ -60,19 +60,32 @@ class Writer:
 
 
 class Converter:
-    def __init__(self, model, skel, skin, name, keep_ids, geosets, playable, texture_files=None):
+    def __init__(self, model, skel, skin, name, keep_ids, geosets, playable, texture_files=None,
+                 remap_body=True, texture_names=None):
         """model, skel, skin: retail file bytes. keep_ids: animation IDs to carry. geosets maps a
         retail geoset ID to its 1.12 ID (0 folds it into the base mesh) and leaves out the ones
         to drop. playable: a 1.12 PlayableAnimationLookup to reuse, as (fallback id, flags).
         texture_files maps retail-only texture types to a fixed 1.12 file; batches drawing any
         other retail-only type are dropped."""
         self.texture_files = texture_files or {}
-        self.usable = {1, 2, 6} | set(self.texture_files)
-        md = chunks(model)
-        self.m = md['MD21']
-        if self.m[:4] != b'MD20' or struct.unpack_from('<I', self.m, 4)[0] < 272:
-            raise ValueError('Not a retail MD21 model')
-        sk = chunks(skel)
+        self.texture_names = texture_names or {}
+        self.remap_body = remap_body
+        self.usable = {0, 1, 2, 6, 8} | set(self.texture_files)
+        self.m = model if model[:4] == b'MD20' else chunks(model)['MD21']
+        self.version = struct.unpack_from('<I', self.m, 4)[0]
+        if self.m[:4] != b'MD20' or self.version < 264:
+            raise ValueError('Not a supported retail model (v264 or later)')
+        # Trolls and many equipment models still embed their skeleton in MD20.
+        if skel is None:
+            sk = {}
+            for tag, fields in {'SKB1': (0x2C, 0x34), 'SKS1': (0x14, 0x1C, 0x24),
+                                'SKA1': (0xF0, 0xF8)}.items():
+                buf = bytearray(self.m)
+                for index, field in enumerate(fields):
+                    struct.pack_into('<II', buf, 8 * index, *arr(self.m, field))
+                sk[tag] = bytes(buf)
+        else:
+            sk = chunks(skel)
         self.bones_buf, self.seq_buf, self.att_buf = sk['SKB1'], sk['SKS1'], sk.get('SKA1', b'')
         self.skin = skin
         if skin[:4] != b'SKIN':
@@ -159,8 +172,13 @@ class Converter:
         tex_types = self.texture_types()
         tex_lookup = self.u16s(0x80)
         mn, mo = arr(m, 0x3C)
+        # HD LOD skins address a different window in the global vertex array.
+        # This field was a bone-count limit in old skins; retail uses it as
+        # lodVertexBase. Ignoring it produces a valid-index but shredded mesh.
+        vertex_base = struct.unpack_from('<I', sk, 44)[0] if self.version >= 272 else 0
 
         self.vertices, self.props, self.triangles, self.submeshes = bytearray(), bytearray(), [], []
+        self.vertex_sources = []
         section_map, dropped = {}, {}
         for i in range(sn):
             rec = sk[so + 48 * i:so + 48 * i + 48]
@@ -171,15 +189,19 @@ class Converter:
             if new_id is None or not kinds & self.usable:
                 dropped[sid] = dropped.get(sid, 0) + icount
                 continue
-            body = 1 in kinds
+            body = self.remap_body and 1 in kinds
             first = len(self.vertices) // 48
             for k in range(vstart, vstart + vcount):
-                vertex = bytearray(m[mo + 48 * lookup[k]:mo + 48 * lookup[k] + 48])
+                source_index = vertex_base + lookup[k]
+                if source_index >= mn:
+                    raise ValueError('Skin LOD vertex base indexes outside the model')
+                vertex = bytearray(m[mo + 48 * source_index:mo + 48 * source_index + 48])
                 if body:
                     u, v = struct.unpack_from('<2f', vertex, 32)
                     u, v = (u - 0.5, 0.625 + 0.375 * v) if u >= 0.5 else (u * 2, v)
                     struct.pack_into('<2f', vertex, 32, u, v)
                 self.vertices += vertex
+                self.vertex_sources.append(source_index)
                 self.props += props[4 * k:4 * k + 4]
             tri_start = len(self.triangles)
             base = istart | level << 16
@@ -224,7 +246,12 @@ class Converter:
 
     def texture_types(self):
         n, o = arr(self.m, 0x50)
-        return {i: struct.unpack_from('<I', self.m, o + 16 * i)[0] for i in range(n)}
+        result = {}
+        for i in range(n):
+            kind, _, length, pos = struct.unpack_from('<IIII', self.m, o + 16 * i)
+            result[i] = kind if kind != 0 or i in self.texture_names or (
+                length and self.m[pos:pos + length].rstrip(b'\0')) else None
+        return result
 
     # --- output --------------------------------------------------------------------------------
 
@@ -249,7 +276,7 @@ class Converter:
                                     s.replay_max, s.blend)
             seq_blob += s.bounds + struct.pack('<hH', nxt, n)
         w.array(0x1C, len(self.seqs), seq_blob)
-        top = max(by_id) + 1
+        top = max(by_id, default=-1) + 1
         w.array(0x24, top, struct.pack(f'<{top}H', *(by_id[i][0] if i in by_id else 0xFFFF
                                                      for i in range(top))))
         play = [(f if f in by_id else 0, flags if f in by_id else 0) for f, flags in self.playable]
@@ -278,18 +305,31 @@ class Converter:
         w.array(view + 16, nv, bytes(self.props))
         w.array(view + 24, len(self.submeshes), b''.join(self.submeshes))
         w.array(view + 32, len(self.batches), b''.join(self.batches))
-        struct.pack_into('<I', d, view + 40, struct.unpack_from('<I', self.skin, 44)[0] or 256)
+        struct.pack_into('<I', d, view + 40, 256)
 
-        w.array(0x54, 0, b'')  # colors: retail characters have none
+        cn, co = arr(m, 0x48)
+        colors = w.array(0x54, cn, bytes(56 * cn))
+        for i in range(cn):
+            self.write_track(w, colors + 56 * i, 0, self.track(m, co + 40 * i, 12))
+            self.write_track(w, colors + 56 * i, 28, self.track(m, co + 40 * i + 20, 2))
         types = self.texture_types()
         tex = bytearray()
         empty = w.put(b'\0')
         for i in range(len(types)):
-            if types[i] in self.texture_files:
+            texture_flags = struct.unpack_from('<I', m, arr(m, 0x50)[1]+16*i+4)[0]
+            if i in self.texture_names:
+                name = self.texture_names[i].encode() + b'\0'
+                tex += struct.pack('<IIII', 0, texture_flags, len(name), w.put(name, 1))
+            elif types[i] in self.texture_files:
                 name = self.texture_files[types[i]].encode() + b'\0'
-                tex += struct.pack('<IIII', 0, 0, len(name), w.put(name, 1))
+                tex += struct.pack('<IIII', 0, texture_flags, len(name), w.put(name, 1))
+            elif types[i] == 0:
+                _, flags, length, pos = struct.unpack_from('<IIII', m, arr(m, 0x50)[1] + 16 * i)
+                name = m[pos:pos + length]
+                tex += struct.pack('<IIII', 0, flags, len(name), w.put(name, 1))
             else:
-                tex += struct.pack('<IIII', types[i] if types[i] in (1, 2, 6) else 1, 0, 1, empty)
+                tex += struct.pack('<IIII', types[i] if types[i] in (1, 2, 6, 8) else 1,
+                                   texture_flags, 1, empty)
         w.array(0x5C, len(types), bytes(tex))
 
         tn, to = arr(m, 0x58)
@@ -306,7 +346,7 @@ class Converter:
                                  self.track(m, to + 60 * i + 20 * k, size, identity=ident))
         repl = [0xFFFF] * 14
         for i in range(len(types) - 1, -1, -1):
-            if types[i] in (1, 2, 6):
+            if types[i] in (1, 2, 6, 8):
                 repl[types[i]] = i
         w.array(0x7C, len(repl), struct.pack(f'<{len(repl)}H', *repl))
         mn, mo = arr(m, 0x70)
@@ -343,3 +383,97 @@ class Converter:
             ln, lo = arr(self.att_buf, 8)
             w.array(0x10C, ln, self.att_buf[lo:lo + 2 * ln])
         return bytes(d)
+
+
+def preserve_body_palette(data, converter):
+    """Keep oral/detail UVs that overlap the destination's legacy face strips.
+
+    Tauren female has two dark oral triangles in the old face-strip rectangle
+    of retail's *left* body atlas. Packing the face there overwrites them with
+    an unused white area. The extended skin-extra atlas stores fur on its left
+    and the untouched retail body half on its right. Split only those triangles
+    onto texture type 8; the rest of the face remains customizable type 1.
+    """
+    vertices = bytearray(converter.vertices)
+    props = bytearray(converter.props)
+    old_triangles = converter.triangles
+    types = converter.texture_types()
+    lookup = converter.u16s(0x80)
+    extra_combo = next((i for i, t in enumerate(lookup) if types.get(t) == 8), None)
+    if extra_combo is None:
+        raise ValueError('Body-palette preservation requires a skin-extra texture')
+    _, source_at = arr(converter.m, 0x3C)
+    source_uv = [struct.unpack_from('<2f', converter.m, source_at+48*i+32)
+                 for i in converter.vertex_sources]
+    triangles, sections, batches = [], [], []
+    count_details = 0
+    for section_index, old in enumerate(converter.submeshes):
+        sid, _, first, count, start, length = struct.unpack_from('<6H', old)
+        old_batches = [b for b in converter.batches if struct.unpack_from('<H', b, 4)[0] == section_index]
+        kinds = {types.get(lookup[struct.unpack_from('<H', b, 16)[0]]) for b in old_batches}
+        if 8 in kinds:
+            texture_index = lookup[extra_combo]
+            flags = struct.unpack_from('<I', converter.m, arr(converter.m, 0x50)[1]+16*texture_index+4)[0]
+            for i in range(first, first+count):
+                u = struct.unpack_from('<f', vertices, 48*i+32)[0]
+                if flags & 1:
+                    u %= 1.0
+                struct.pack_into('<f', vertices, 48*i+32, u*0.5)
+        ordinary, details = [], []
+        for at in range(start, start+length, 3):
+            tri = old_triangles[at:at+3]
+            uv = [source_uv[i] for i in tri]
+            if 1 in kinds and all(u < 0.5 for u, _ in uv) and any(u < 0.25 and v > 0.625 for u, v in uv):
+                details.extend(tri)
+            else:
+                ordinary.extend(tri)
+        new = bytearray(old)
+        struct.pack_into('<HH', new, 8, len(triangles), len(ordinary))
+        main_index = len(sections)
+        sections.append(new)
+        triangles.extend(ordinary)
+        for old_batch in old_batches:
+            batch = bytearray(old_batch)
+            struct.pack_into('<HH', batch, 4, main_index, main_index)
+            batches.append(batch)
+        if details:
+            first_new = len(vertices)//48
+            copies = {}
+            detail_indices = []
+            for old_index in details:
+                if old_index not in copies:
+                    index = len(vertices)//48
+                    copies[old_index] = index
+                    vertex = bytearray(converter.vertices[48*old_index:48*old_index+48])
+                    u, v = source_uv[old_index]
+                    struct.pack_into('<2f', vertex, 32, 0.5+u, v)
+                    vertices.extend(vertex)
+                    props.extend(converter.props[4*old_index:4*old_index+4])
+                detail_indices.append(copies[old_index])
+            detail_section = bytearray(old)
+            struct.pack_into('<6H', detail_section, 0, sid, 0, first_new, len(copies),
+                             len(triangles), len(detail_indices))
+            detail_index = len(sections)
+            sections.append(detail_section)
+            triangles.extend(detail_indices)
+            batch = bytearray(old_batches[0])
+            struct.pack_into('<HH', batch, 4, detail_index, detail_index)
+            struct.pack_into('<H', batch, 16, extra_combo)
+            batches.append(batch)
+            count_details += len(details)//3
+    n = len(vertices)//48
+    if n > 65535 or len(triangles) > 65535:
+        raise ValueError('Body-palette preservation exceeds the legacy view limit')
+    w = Writer()
+    w.data = bytearray(data)
+    w.array(0x44, n, vertices)
+    view = w.array(0x4C, 1, bytes(44))
+    w.array(view, n, struct.pack(f'<{n}H', *range(n)))
+    w.array(view+8, len(triangles), struct.pack(f'<{len(triangles)}H', *triangles))
+    w.array(view+16, n, props)
+    w.array(view+24, len(sections), b''.join(sections))
+    w.array(view+32, len(batches), b''.join(batches))
+    struct.pack_into('<I', w.data, view+40, 256)
+    converter.report.update(vertices=n, submeshes=len(sections), batches=len(batches),
+                            preserved_body_palette_triangles=count_details)
+    return bytes(w.data)
