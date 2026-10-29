@@ -8,7 +8,7 @@ import bloodelf_patch as bp
 import durotar_patch
 import bloodelf_picker_patch
 
-INSTALLED = Path(r'D:\Personal\ASR\ASR.exe')
+INSTALLED = Path(__file__).resolve().parents[1] / 'downloads/race-expansion/baseline/ASR.exe'
 
 
 class LocaleTests(unittest.TestCase):

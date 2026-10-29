@@ -13,7 +13,7 @@ import retail_textures
 from test_retail_m2 import retail_files
 from verify_character_upgrade import verify
 
-INSTALLED = Path(r'D:\Personal\ASR\ASR.exe')
+INSTALLED = Path(__file__).resolve().parents[1] / 'downloads/race-expansion/baseline/ASR.exe'
 
 
 class FacialTextureTests(unittest.TestCase):

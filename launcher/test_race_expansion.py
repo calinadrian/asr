@@ -13,7 +13,7 @@ from race_catalog import ADDITIONS, BASE_IDS, PLAYABLE_IDS, PORTRAITS
 from race_patch import Image, apply, existing
 from race_picker_patch import groups
 
-INSTALLED = Path(r'D:\Personal\ASR\ASR.exe')
+INSTALLED = Path(__file__).resolve().parents[1] / 'downloads/race-expansion/baseline/ASR.exe'
 FOLDERS = ('Worgen', 'KulTiran', 'Draenei', 'EarthenDwarf', 'DarkIronDwarf',
            'LightforgedDraenei', 'VoidElf', 'Mechagnome', 'Dracthyr', 'Harronir',
            'Nightborne', 'HighmountainTauren', 'MagharOrc', 'ZandalariTroll',

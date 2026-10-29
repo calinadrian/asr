@@ -13,7 +13,7 @@ try:
 except ImportError:
     LuaRuntime = None
 
-SOURCE = Path(r'D:\Personal\ASR\ASR.exe')
+SOURCE = Path(__file__).resolve().parents[1] / 'downloads/race-expansion/baseline/ASR.exe'
 
 
 class Mapped:
