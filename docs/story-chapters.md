@@ -9,8 +9,8 @@ protects every map card position and connector segment. The rule Node template
 is verified independently of other headings so suppressing the covered panels
 does not remove the connector paths.
 Locked overview cards use a short status line so their titles stay readable;
-the regular list retains the full boss and zone unlock requirements. Closed
-sidebar tabs size themselves to their panel rather than the full viewport.
+the regular list retains the full boss and zone unlock requirements. The same
+compact tabs fit both the regular picker and the map header.
 
 The Story panel follows two faction roads that meet in Stranglethorn Vale:
 

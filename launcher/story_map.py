@@ -224,11 +224,7 @@ def install(image, state, horde, alliance, stv, order, dungeons, mask):
         for off in (0x60, 0x88, 0x98, 0xa8):
             code.raw('c785'+struct.pack('<I', 0x280+off).hex()+struct.pack('<I', tag).hex())
             code.raw('c785'+struct.pack('<I', 0x284+off).hex()+struct.pack('<f', value).hex())
-    code.rel('803d', opened, '00').jcc('e', 'sidebar')
     widths(VW, TAB_WIDTH)
-    code.jmp('height').label('sidebar')
-    widths(PCT, 48.0)
-    code.label('height')
     for off, tag, value in ((0x90, VH, HEADER_HEIGHT),
                             (0xa0, VH, HEADER_HEIGHT), (0xb0, VH, HEADER_HEIGHT)):
         code.raw('c785'+struct.pack('<I', 0x280+off).hex()+struct.pack('<I', tag).hex())
