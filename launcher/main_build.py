@@ -44,6 +44,11 @@ def build(installed, races, vanilla, source, output, version):
             shutil.copyfile(path, data / path.name)
     for letter in 'VW':
         shutil.copyfile(races / f'patch-{letter}.MPQ', data / f'patch-{letter}.MPQ')
+    from modern_armor_patch import validate_data as validate_armor
+    prepared_armor=ROOT/'downloads/modern-armor/patch-R.MPQ'
+    if prepared_armor.is_file():
+        shutil.copyfile(prepared_armor,data/'patch-R.MPQ')
+    validate_armor(data)
     print('Building complete story terrain and creatures', flush=True)
     archive, report = story_assets.prepare(vanilla, data)
     (data / 'patch-S.MPQ').write_bytes(archive)
@@ -62,6 +67,8 @@ def finish(output, races, vanilla, version):
     from audit_story_bodies import audit
     from verify_race_expansion import verify
     data = output / 'Data'
+    from modern_armor_patch import validate_data as validate_armor
+    validate_armor(data)
     # The race verifier expects its artifacts at the candidate root and an
     # executable without the reversible final story payload.
     import starter_missions

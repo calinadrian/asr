@@ -146,6 +146,9 @@ def apply(source):
                 raise ValueError('Starter-mission hook changed')
         return bytes(source)
 
+    import modern_armor_patch
+    modern_armor_patch.apply(image)
+
     # Resolve the expanded zone slice instead of assuming where a prior patch put it.
     ptr, count = struct.unpack('<QQ', image.read(PROFILE['slices'][0], 16))
     if count != 13:
